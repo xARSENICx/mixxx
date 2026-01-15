@@ -47,19 +47,26 @@
        <property name="bottomMargin">
         <number>0</number>
        </property>
-       <item>
-        <widget class="QRadioButton" name="radioButtonRecentlyAdded">
-         <property name="focusPolicy">
-          <enum>Qt::NoFocus</enum>
-         </property>
-         <property name="toolTip">
-          <string>Shows tracks added to the library within the last 7 days.</string>
-         </property>
-         <property name="text">
-          <string>New</string>
-         </property>
-        </widget>
-       </item>
+        <item>
+         <widget class="QRadioButton" name="radioButtonRecentlyAdded">
+          <property name="focusPolicy">
+           <enum>Qt::NoFocus</enum>
+          </property>
+          <property name="toolTip">
+           <string>Shows tracks added to the library recently.</string>
+          </property>
+          <property name="text">
+           <string>New</string>
+          </property>
+         </widget>
+        </item>
+        <item>
+         <widget class="QSpinBox" name="spinBoxRecentDays">
+          <property name="toolTip">
+           <string>Number of days to check for recently added tracks.</string>
+          </property>
+         </widget>
+        </item>
        <item>
         <widget class="QRadioButton" name="radioButtonAllSongs">
          <property name="focusPolicy">

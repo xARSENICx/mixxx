@@ -20,6 +20,16 @@ DlgAnalysis::DlgAnalysis(WLibrary* parent,
     m_songsButtonGroup.addButton(radioButtonRecentlyAdded);
     m_songsButtonGroup.addButton(radioButtonAllSongs);
 
+    m_uiRecentDays = m_pConfig->getValue<uint>(
+            ConfigKey("[Analysis]", "RecentDays"), 7);
+    spinBoxRecentDays->setRange(1, 3650);
+    spinBoxRecentDays->setValue(m_uiRecentDays);
+    spinBoxRecentDays->setSuffix(tr(" days"));
+
+    const QString maxText = QStringLiteral("3650 days");
+    const int minWidth = spinBoxRecentDays->fontMetrics().horizontalAdvance(maxText) + 20;
+    spinBoxRecentDays->setStyleSheet(QString("min-width: %1px;").arg(minWidth));
+
     m_pAnalysisLibraryTableView = new WAnalysisLibraryTableView(
             this,
             pConfig,
@@ -60,6 +70,11 @@ DlgAnalysis::DlgAnalysis(WLibrary* parent,
             &QRadioButton::clicked,
             this,
             &DlgAnalysis::slotShowAllSongs);
+
+    connect(spinBoxRecentDays,
+            QOverload<int>::of(&QSpinBox::valueChanged),
+            this,
+            &DlgAnalysis::slotRecentDaysChanged);
     // Don't click those radio buttons now reduce skin loading time.
     // 'RecentlyAdded' is clicked in onShow()
 
@@ -114,8 +129,12 @@ void DlgAnalysis::setFocus() {
 }
 
 void DlgAnalysis::onSearch(const QString& text) {
-    m_pAnalysisLibraryTableModel->searchCurrentTrackSet(
-            text, radioButtonRecentlyAdded->isChecked());
+    if (radioButtonRecentlyAdded->isChecked()) {
+        m_pAnalysisLibraryTableModel->setExtraFilter(getRecentFilter());
+    } else {
+        m_pAnalysisLibraryTableModel->setExtraFilter(QString());
+    }
+    m_pAnalysisLibraryTableModel->search(text);
 }
 
 void DlgAnalysis::tableSelectionChanged(const QItemSelection&,
@@ -129,7 +148,6 @@ void DlgAnalysis::selectAll() {
 }
 
 void DlgAnalysis::analyze() {
-    // qDebug() << this << "analyze()";
     if (m_bAnalysisActive) {
         emit stopAnalysis();
     } else {
@@ -148,7 +166,6 @@ void DlgAnalysis::analyze() {
 }
 
 void DlgAnalysis::slotAnalysisActive(bool bActive) {
-    // qDebug() << this << "slotAnalysisActive" << bActive;
     m_bAnalysisActive = bActive;
     if (bActive) {
         pushButtonAnalyze->setChecked(true);
@@ -165,8 +182,6 @@ void DlgAnalysis::slotAnalysisActive(bool bActive) {
 
 void DlgAnalysis::onTrackAnalysisSchedulerProgress(
         AnalyzerProgress, int finishedCount, int totalCount) {
-    // qDebug() << this << "onTrackAnalysisSchedulerProgress" <<
-    // analyzerProgress << finishedCount << totalCount;
     if (labelProgress->isEnabled()) {
         int totalProgressPercent = 0;
         if (totalCount > 0) {
@@ -175,7 +190,6 @@ void DlgAnalysis::onTrackAnalysisSchedulerProgress(
                 totalProgressPercent = 100;
             }
         }
-
         labelProgress->setText(tr("Analyzing %1/%2")
                                        .arg(QString::number(finishedCount),
                                                QString::number(totalCount)) +
@@ -189,11 +203,31 @@ void DlgAnalysis::onTrackAnalysisSchedulerFinished() {
 }
 
 void DlgAnalysis::slotShowRecentSongs() {
-    m_pAnalysisLibraryTableModel->showRecentSongs();
+    spinBoxRecentDays->setEnabled(true);
+    m_pAnalysisLibraryTableModel->setExtraFilter(getRecentFilter());
+    m_pAnalysisLibraryTableModel->select();
+}
+
+void DlgAnalysis::slotRecentDaysChanged(int days) {
+    m_uiRecentDays = static_cast<uint>(days);
+    m_pConfig->setValue(ConfigKey("[Analysis]", "RecentDays"), m_uiRecentDays);
+
+    if (radioButtonRecentlyAdded->isChecked()) {
+        m_pAnalysisLibraryTableModel->setExtraFilter(getRecentFilter());
+        m_pAnalysisLibraryTableModel->select();
+    }
 }
 
 void DlgAnalysis::slotShowAllSongs() {
-    m_pAnalysisLibraryTableModel->showAllSongs();
+    spinBoxRecentDays->setEnabled(false);
+    m_pAnalysisLibraryTableModel->setExtraFilter(QString());
+    m_pAnalysisLibraryTableModel->select();
+}
+
+QString DlgAnalysis::getRecentFilter() const {
+    // Return a relative query string, e.g. "added:>-7d"
+    // This is handled by DateAddedFilterNode
+    return QStringLiteral("added:>%1d").arg(-static_cast<int>(m_uiRecentDays));
 }
 
 void DlgAnalysis::installEventFilter(QObject* pFilter) {
