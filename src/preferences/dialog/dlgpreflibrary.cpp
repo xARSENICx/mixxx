@@ -111,18 +111,19 @@ DlgPrefLibrary::DlgPrefLibrary(
 
     updateSearchLineEditHistoryOptions();
 
-    comboBox_dateFormat->addItem(tr("Native (System Default)"),
-            static_cast<int>(mixxx::DateFormat::Native));
-    comboBox_dateFormat->addItem(tr("YYYY-MM-DD"),
-            static_cast<int>(mixxx::DateFormat::ISO8601));
-    comboBox_dateFormat->addItem(tr("DD/MM/YYYY"),
-            static_cast<int>(mixxx::DateFormat::DayMonthYear));
-    comboBox_dateFormat->addItem(tr("MM/DD/YYYY"),
-            static_cast<int>(mixxx::DateFormat::MonthDayYear));
-    comboBox_dateFormat->addItem(tr("YYYY/MM/DD"),
-            static_cast<int>(mixxx::DateFormat::YearMonthDay));
+    comboBox_dateFormat->setEditable(true);
+    // Use empty string data for Native to invoke QLocale default
+    comboBox_dateFormat->addItem(tr("Native (System Default)"), QString());
+    comboBox_dateFormat->addItem(tr("ISO 8601 (yyyy-MM-dd)"), QStringLiteral("yyyy-MM-dd"));
+    comboBox_dateFormat->addItem(tr("Regional Short (d/M/yy)"), QStringLiteral("d/M/yy"));
+    comboBox_dateFormat->addItem(tr("Regional Long (dd.MM.yyyy)"), QStringLiteral("dd.MM.yyyy"));
+    // Custom option is handled by the edit behavior
+
+    // Update preview initially
+    slotDateFormatChanged(comboBox_dateFormat->currentText());
+
     connect(comboBox_dateFormat,
-            QOverload<int>::of(&QComboBox::currentIndexChanged),
+            &QComboBox::currentTextChanged,
             this,
             &DlgPrefLibrary::slotDateFormatChanged);
 
@@ -283,10 +284,13 @@ void DlgPrefLibrary::slotResetToDefaults() {
     comboBox_search_bpm_fuzzy_range->setCurrentIndex(
             comboBox_search_bpm_fuzzy_range->findData(kDefaultFuzzyRateRangePercent));
 
-    int defaultDateFormat = static_cast<int>(BaseTrackTableModel::kDateFormatDefault);
-    int dateIndex = comboBox_dateFormat->findData(defaultDateFormat);
+    int dateIndex = comboBox_dateFormat->findData(BaseTrackTableModel::kDateFormatDefault);
     if (dateIndex != -1) {
         comboBox_dateFormat->setCurrentIndex(dateIndex);
+    } else {
+        // Fallback or custom default? Default is usually Native (empty string)
+        // which should be found.
+        comboBox_dateFormat->setCurrentIndex(0);
     }
 
     checkBox_show_rhythmbox->setChecked(true);
@@ -331,15 +335,18 @@ void DlgPrefLibrary::slotUpdate() {
     checkBox_show_serato->setChecked(m_pConfig->getValue(
             ConfigKey("[Library]", "ShowSeratoLibrary"), true));
 
-    int dateFormat = m_pConfig->getValue(
+    QString dateFormat = m_pConfig->getValue(
             kDateFormatConfigKey,
-            static_cast<int>(BaseTrackTableModel::kDateFormatDefault));
+            BaseTrackTableModel::kDateFormatDefault);
     int dateIndex = comboBox_dateFormat->findData(dateFormat);
     if (dateIndex != -1) {
         comboBox_dateFormat->setCurrentIndex(dateIndex);
+    } else {
+        // Custom format string
+        comboBox_dateFormat->setCurrentText(dateFormat);
     }
     // Ensure the static member is updated on startup/load
-    BaseTrackTableModel::setDateFormat(static_cast<mixxx::DateFormat>(dateFormat));
+    BaseTrackTableModel::setDateFormat(dateFormat);
 
     switch (m_pConfig->getValue<int>(
             kTrackDoubleClickActionConfigKey,
@@ -747,9 +754,25 @@ void DlgPrefLibrary::setSeratoMetadataEnabled(bool shouldSyncTrackMetadata) {
     }
 }
 
-void DlgPrefLibrary::slotDateFormatChanged(int index) {
-    int formatInt = comboBox_dateFormat->itemData(index).toInt();
-    mixxx::DateFormat format = static_cast<mixxx::DateFormat>(formatInt);
-    m_pConfig->setValue(kDateFormatConfigKey, formatInt);
+void DlgPrefLibrary::slotDateFormatChanged(const QString& text) {
+    QString format = text;
+    // Check if the text matches a predefined item (like "Native (...)")
+    int index = comboBox_dateFormat->findText(text);
+    if (index != -1) {
+        // Use the underlying data (e.g. empty string for Native, or "yyyy-MM-dd" for ISO)
+        format = comboBox_dateFormat->itemData(index).toString();
+    }
+
+    // Update Preview
+    QDate exampleDate = QDate::currentDate();
+    QString previewStr;
+    if (format.isEmpty()) {
+        previewStr = QLocale().toString(exampleDate, QLocale::ShortFormat);
+    } else {
+        previewStr = exampleDate.toString(format);
+    }
+    label_dateFormatPreview->setText(previewStr);
+
+    m_pConfig->setValue(kDateFormatConfigKey, format);
     BaseTrackTableModel::setDateFormat(format);
 }

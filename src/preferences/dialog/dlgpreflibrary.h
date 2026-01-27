@@ -67,7 +67,7 @@ class DlgPrefLibrary : public DlgPreferencePage, public Ui::DlgPrefLibraryDlg {
     void slotBpmRangeSelected(int index);
     void slotBpmColumnPrecisionChanged(int bpmPrecision);
     void slotSeratoMetadataExportClicked(bool);
-    void slotDateFormatChanged(int index);
+    void slotDateFormatChanged(const QString& text);
 
   private:
     void populateDirList();

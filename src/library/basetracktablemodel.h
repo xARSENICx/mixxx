@@ -133,8 +133,8 @@ class BaseTrackTableModel : public QAbstractTableModel, public TrackModel {
     static constexpr bool kApplyPlayedTrackColorDefault = true;
     static void setApplyPlayedTrackColor(bool apply);
 
-    static constexpr mixxx::DateFormat kDateFormatDefault = mixxx::DateFormat::Native;
-    static void setDateFormat(mixxx::DateFormat format);
+    static const QString kDateFormatDefault;
+    static void setDateFormat(const QString& format);
 
   protected:
     // Build a map from the column names to their indices
@@ -311,5 +311,5 @@ class BaseTrackTableModel : public QAbstractTableModel, public TrackModel {
     static std::optional<ColorPalette> s_keyColorPalette;
 
     static bool s_bApplyPlayedTrackColor;
-    static mixxx::DateFormat s_dateFormat;
+    static QString s_dateFormat;
 };

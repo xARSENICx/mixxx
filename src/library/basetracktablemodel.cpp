@@ -114,10 +114,10 @@ void BaseTrackTableModel::setApplyPlayedTrackColor(bool apply) {
     s_bApplyPlayedTrackColor = apply;
 }
 
-mixxx::DateFormat BaseTrackTableModel::s_dateFormat =
-        BaseTrackTableModel::kDateFormatDefault;
+const QString BaseTrackTableModel::kDateFormatDefault = QString();
+QString BaseTrackTableModel::s_dateFormat = BaseTrackTableModel::kDateFormatDefault;
 
-void BaseTrackTableModel::setDateFormat(mixxx::DateFormat format) {
+void BaseTrackTableModel::setDateFormat(const QString& format) {
     s_dateFormat = format;
 }
 
