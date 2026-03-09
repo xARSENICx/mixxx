@@ -57,7 +57,7 @@ Rectangle {
                         readonly property real indentation: 40
                         // FIXME The signature for that function has changed after Qt 6.4.2 (currently shipped on Ubuntu 24.04)
                         // See https://github.com/mixxxdj/mixxx/pull/14514#issuecomment-2770811094 for further details
-                        readonly property var index: treeView.modelIndex(column, row)
+                        readonly property var index: treeView.index(row, column)
 
                         // Rotate indicator when expanded by the user
                         // (requires TreeView to have a selectionModel)
@@ -78,7 +78,7 @@ Rectangle {
                         required property TreeView treeView
 
                         implicitHeight: depth == 0 ? 42 : 35
-                        implicitWidth: treeView.width
+                        implicitWidth: Math.max(1, treeView.width)
 
                         TableView.onPooled: indicatorAnimation.complete()
                         TableView.onReused: if (current)
