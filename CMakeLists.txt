@@ -1369,6 +1369,8 @@ add_library(
   src/library/analysis/analysislibrarytablemodel.cpp
   src/library/analysis/dlganalysis.cpp
   src/library/analysis/dlganalysis.ui
+  src/library/findduplicates/dlgfindduplicates.cpp
+  src/library/findduplicates/findduplicatesfeature.cpp
   src/library/autodj/autodjfeature.cpp
   src/library/autodj/autodjprocessor.cpp
   src/library/autodj/dlgautodj.cpp

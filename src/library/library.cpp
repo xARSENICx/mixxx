@@ -10,6 +10,7 @@
 #include "library/autodj/autodjfeature.h"
 #include "library/banshee/bansheefeature.h"
 #include "library/browse/browsefeature.h"
+#include "library/findduplicates/findduplicatesfeature.h"
 #ifdef __ENGINEPRIME__
 #include "library/export/libraryexporter.h"
 #endif
@@ -162,6 +163,8 @@ Library::Library(
             m_pAnalysisFeature,
             &AnalysisFeature::analyzeTracks);
     addFeature(m_pAnalysisFeature);
+
+    addFeature(new FindDuplicatesFeature(this, m_pConfig));
     // Suspend a batch analysis while an ad-hoc analysis of
     // loaded tracks is in progress and resume it afterwards.
     connect(pPlayerManager,
