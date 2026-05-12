@@ -1,14 +1,23 @@
 #include "skin/qml/qmlskin.h"
 
 #include <QDir>
+#include <QQmlContext>
+#include <QQmlEngine>
+#include <QQuickStyle>
+#include <QQuickWidget>
 #include <QScreen>
 #include <QSettings>
+#include <QUrl>
+
+#include "coreservices.h"
+#include "qml/asyncimageprovider.h"
 
 namespace {
 
 const QString kSkinManifestFileName(QStringLiteral("skin.ini"));
 const QString kMainQmlFileName(QStringLiteral("main.qml"));
 const QString kSkinGroup(QStringLiteral("Skin"));
+const QString kNameKey(QStringLiteral("name"));
 const QString kDescriptionKey(QStringLiteral("description"));
 const QString kMinPixelWidthKey(QStringLiteral("min_pixel_width"));
 const QString kMinPixelHeightKey(QStringLiteral("min_pixel_height"));
@@ -87,11 +96,35 @@ LaunchImage* QmlSkin::loadLaunchImage(QWidget*, UserSettingsPointer) const {
     return nullptr;
 }
 
-QWidget* QmlSkin::loadSkin(QWidget*,
+QWidget* QmlSkin::loadSkin(QWidget* pParent,
         UserSettingsPointer,
         QSet<ControlObject*>*,
-        mixxx::CoreServices*) const {
-    return nullptr;
+        mixxx::CoreServices* pCoreServices) const {
+    VERIFY_OR_DEBUG_ASSERT(pCoreServices) {
+        return nullptr;
+    }
+
+    QQuickStyle::setStyle("Basic");
+    qputenv("QT_QUICK_TABLEVIEW_COMPAT_VERSION", "6.4");
+
+    QQuickWidget* pWidget = new QQuickWidget(pParent);
+    pWidget->setResizeMode(QQuickWidget::SizeRootObjectToView);
+
+    QQmlEngine* pEngine = pWidget->engine();
+    VERIFY_OR_DEBUG_ASSERT(pEngine) {
+        delete pWidget;
+        return nullptr;
+    }
+
+    pEngine->addImportPath(QStringLiteral(":/mixxx.org/imports"));
+
+    QQuickAsyncImageProvider* pImageProvider = new mixxx::qml::AsyncImageProvider(
+            pCoreServices->getTrackCollectionManager());
+    pEngine->addImageProvider(mixxx::qml::AsyncImageProvider::kProviderName, pImageProvider);
+
+    pWidget->setResizeMode(QQuickWidget::SizeRootObjectToView);
+    pWidget->setSource(QUrl::fromLocalFile(mainQmlFilePath()));
+    return pWidget;
 }
 
 QString QmlSkin::mainQmlFilePath() const {

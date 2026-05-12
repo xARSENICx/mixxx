@@ -21,7 +21,7 @@ class QmlSkin : public mixxx::skin::Skin {
     static SkinPointer fromDirectory(const QDir& dir);
 
     mixxx::skin::SkinType type() const override {
-        return mixxx::skin::SkinType::QML;
+        return SkinType::QML;
     }
     bool isValid() const override;
     QFileInfo path() const override;
