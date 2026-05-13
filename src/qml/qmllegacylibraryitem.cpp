@@ -7,22 +7,26 @@
 #include <QFile>
 #include <QHeaderView>
 #include <QLabel>
+#include <QMetaEnum>
 #include <QPainter>
 #include <QPushButton>
 #include <QScrollBar>
 #include <QSplitter>
 #include <QStyle>
+#include <QTableView>
 #include <QTimer>
 #include <QVBoxLayout>
 #include <cmath>
 
 #include "control/controlproxy.h"
+#include "control/controlpushbutton.h"
 #include "library/library.h"
 #include "mixer/playermanager.h"
 #include "moc_qmllegacylibraryitem.cpp"
 #include "qml/qmlconfigproxy.h"
 #include "qml/qmllibraryproxy.h"
 #include "skin/legacy/skincontext.h"
+#include "waveform/overviewtype.h"
 #include "widget/wlibrary.h"
 #include "widget/wlibrarysidebar.h"
 #include "widget/wsearchlineedit.h"
@@ -75,23 +79,31 @@ QmlLegacyLibraryItem::QmlLegacyLibraryItem(QQuickItem* parent)
     pRootLayout->setContentsMargins(0, 0, 0, 0);
     pRootLayout->addWidget(pSplitter);
 
-    // 6. Bind to Library singleton
+    // 6. Initialize the WaveformOverviewType ControlPushButton BEFORE binding
+    //    the library, because bindLibraryWidget creates OverviewDelegate which
+    //    reads this CO in its constructor. In legacy mode DlgPrefWaveform
+    //    creates this CO, but that dialog is never constructed in QML mode.
+    initializeOverviewTypeControl();
+
+    // 7. Bind to Library singleton
     Library* pLibrary = QmlLibraryProxy::get();
     if (pLibrary) {
         pLibrary->bindSearchboxWidget(m_pSearchLineEdit);
         pLibrary->bindSidebarWidget(m_pSidebar);
         pLibrary->bindLibraryWidget(m_pLibraryWidget, QmlLibraryProxy::getKeyboard());
 
-        // 7. Trigger repaints on visual changes and refresh input tracking for
+        // 8. Trigger repaints on visual changes and refresh input tracking for
         //    views that are created or swapped after the initial bind.
         connect(pLibrary, &Library::switchToView, this, [this]() {
             enableEmbeddedWidgetInputTracking();
             applyLegacyScrollbarStyles();
+            connectSortBypass();
             repaintEmbeddedViews();
         });
         connect(pLibrary, &Library::showTrackModel, this, [this]() {
             enableEmbeddedWidgetInputTracking();
             applyLegacyScrollbarStyles();
+            connectSortBypass();
             repaintEmbeddedViews();
         });
 
@@ -101,7 +113,7 @@ QmlLegacyLibraryItem::QmlLegacyLibraryItem(QQuickItem* parent)
         qWarning() << "QmlLegacyLibraryItem: Library singleton not available!";
     }
 
-    // 8. [PoC hack] Apply the LateNight classic stylesheet so the embedded
+    // 9. [PoC hack] Apply the LateNight classic stylesheet so the embedded
     //    QWidget tree renders branch arrows, preview button icons, and other
     //    SVG-based decorations that are normally applied by LegacySkinParser.
     //    TODO(GSoC): Replace with the QQuickAsyncImageProvider "skin:" scheme
@@ -110,6 +122,7 @@ QmlLegacyLibraryItem::QmlLegacyLibraryItem(QQuickItem* parent)
     repolishEmbeddedWidgets();
     enableEmbeddedWidgetInputTracking();
     applyLegacyScrollbarStyles();
+    connectSortBypass();
 
     const QString previewDeckGroup = PlayerManager::groupForPreviewDeck(0);
     m_pPreviewDeckPlay = std::make_unique<ControlProxy>(
@@ -207,10 +220,17 @@ QWidget* QmlLegacyLibraryItem::eventTargetFor(QWidget* widget) const {
         return m_pRootWidget.get();
     }
 
+    // QHeaderView IS-A QAbstractItemView, but sort-click handling lives on the
+    // header itself, not its internal viewport. Do NOT redirect header clicks.
+    if (qobject_cast<QHeaderView*>(widget)) {
+        return widget;
+    }
+
     if (auto* view = parentItemView(widget)) {
-        QWidget* viewport = view->viewport();
-        if (viewport && (widget == view || widget == viewport)) {
-            return viewport;
+        // For table/list views, redirect to viewport so delegates get events.
+        if (widget == view) {
+            QWidget* viewport = view->viewport();
+            return viewport ? viewport : widget;
         }
     }
     return widget;
@@ -390,6 +410,10 @@ void QmlLegacyLibraryItem::maybeApplyHeaderSortFallback(
 
     if (header->sortIndicatorSection() != m_pressedHeaderSortSection ||
             header->sortIndicatorOrder() != m_pressedHeaderSortOrder) {
+        // sortIndicatorChanged already fired during the press/release cycle,
+        // so the native sort path already ran. No fallback needed.
+        qDebug() << "QmlLegacyLibraryItem: sort indicator already changed by"
+                    " native header handling, skipping fallback";
         return;
     }
 
@@ -398,6 +422,9 @@ void QmlLegacyLibraryItem::maybeApplyHeaderSortFallback(
                               ? Qt::DescendingOrder
                               : Qt::AscendingOrder)
             : Qt::AscendingOrder;
+
+    qDebug() << "QmlLegacyLibraryItem: applying sort fallback on section"
+             << releaseSection << "order" << order;
     header->setSortIndicator(releaseSection, order);
     header->update();
 }
@@ -552,6 +579,31 @@ void QmlLegacyLibraryItem::enableEmbeddedWidgetInputTracking() {
         widget->setMouseTracking(true);
         widget->setAttribute(Qt::WA_Hover, true);
         widget->setAttribute(Qt::WA_NoMousePropagation, false);
+    }
+}
+
+void QmlLegacyLibraryItem::connectSortBypass() {
+    if (!m_pRootWidget) {
+        return;
+    }
+
+    // WTrackTableView::applySortingIfVisible() bails because isVisible()
+    // returns false for our WA_DontShowOnScreen widget tree. We bypass this
+    // by directly connecting each table header's sortIndicatorChanged signal
+    // to QTableView::sortByColumn (public, inherited), which does the actual
+    // model sort. Use Qt::UniqueConnection so this is idempotent across
+    // repeated calls from view-switch signals.
+    const auto tableViews = m_pRootWidget->findChildren<QTableView*>();
+    for (QTableView* tableView : tableViews) {
+        QHeaderView* header = tableView->horizontalHeader();
+        if (!header) {
+            continue;
+        }
+        connect(header,
+                &QHeaderView::sortIndicatorChanged,
+                tableView,
+                &QTableView::sortByColumn,
+                Qt::UniqueConnection);
     }
 }
 
@@ -767,6 +819,33 @@ void QmlLegacyLibraryItem::applyLegacyStylesheet() {
 
     m_pRootWidget->setStyleSheet(style);
     qDebug() << "QmlLegacyLibraryItem: applied LateNight legacy stylesheet";
+}
+
+void QmlLegacyLibraryItem::initializeOverviewTypeControl() {
+    // In legacy mode, DlgPrefWaveform creates a ControlPushButton for
+    // [Waveform],WaveformOverviewType and seeds it from the config file.
+    // In QML mode that dialog is never constructed, so the CO does not
+    // exist. OverviewDelegate tries to read it and falls back to 0
+    // (= Filtered), which explains the yellow single-colour overviews.
+    //
+    // We create the CO here, before WLibrary delegates are constructed
+    // (bindLibraryWidget), so the delegate sees the correct RGB default.
+    UserSettingsPointer pConfig = QmlConfigProxy::get();
+    const ConfigKey overviewTypeCfgKey(
+            QStringLiteral("[Waveform]"),
+            QStringLiteral("WaveformOverviewType"));
+
+    m_pOverviewTypeControl = std::make_unique<ControlPushButton>(overviewTypeCfgKey);
+    m_pOverviewTypeControl->setStates(
+            QMetaEnum::fromType<mixxx::OverviewType>().keyCount());
+    m_pOverviewTypeControl->setReadOnly();
+
+    // Seed from config, defaulting to RGB.
+    mixxx::OverviewType overviewType = pConfig->getValue<mixxx::OverviewType>(
+            overviewTypeCfgKey, mixxx::OverviewType::RGB);
+    m_pOverviewTypeControl->forceSet(static_cast<double>(overviewType));
+    qDebug() << "QmlLegacyLibraryItem: initialized WaveformOverviewType CO to"
+             << static_cast<int>(overviewType);
 }
 
 } // namespace qml

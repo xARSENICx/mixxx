@@ -8,6 +8,7 @@
 #include <memory>
 
 class ControlProxy;
+class ControlPushButton;
 class QAbstractItemView;
 class QHeaderView;
 class QScrollBar;
@@ -44,6 +45,7 @@ class QmlLegacyLibraryItem : public QQuickPaintedItem {
   private:
     void updateWidgetSize();
     void applyLegacyStylesheet();
+    void initializeOverviewTypeControl();
     void applyLegacyLibrarySkinConfiguration();
     void enableEmbeddedWidgetInputTracking();
     QWidget* widgetAtRootPos(const QPoint& rootPos) const;
@@ -66,6 +68,7 @@ class QmlLegacyLibraryItem : public QQuickPaintedItem {
     void repolishEmbeddedWidgets();
     void applyLegacyScrollbarStyles();
     void applyLegacyScrollbarStyle(QScrollBar* scrollBar);
+    void connectSortBypass();
 
     std::unique_ptr<QWidget> m_pRootWidget;
 
@@ -90,6 +93,12 @@ class QmlLegacyLibraryItem : public QQuickPaintedItem {
 
     std::unique_ptr<ControlProxy> m_pPreviewDeckPlay;
     std::unique_ptr<ControlProxy> m_pPreviewDeckTrackLoaded;
+
+    // Owns the [Waveform],WaveformOverviewType ControlPushButton that is
+    // normally created by DlgPrefWaveform. In QML mode that dialog does not
+    // exist, so we create and own the CO here so that OverviewDelegate can
+    // read the correct overview type (RGB by default).
+    std::unique_ptr<ControlPushButton> m_pOverviewTypeControl;
 };
 
 } // namespace qml
