@@ -2,6 +2,7 @@
 
 #include <QQmlEngine>
 #include <QQuickPaintedItem>
+#include <QTimer>
 #include <QWidget>
 #include <memory>
 
@@ -37,6 +38,7 @@ class QmlLegacyLibraryItem : public QQuickPaintedItem {
 
   private:
     void updateWidgetSize();
+    void applyLegacyStylesheet();
 
     std::unique_ptr<QWidget> m_pRootWidget;
 
@@ -44,6 +46,11 @@ class QmlLegacyLibraryItem : public QQuickPaintedItem {
     WLibrary* m_pLibraryWidget = nullptr;
     WLibrarySidebar* m_pSidebar = nullptr;
     WSearchLineEdit* m_pSearchLineEdit = nullptr;
+
+    // Tracks which widget pressed the mouse button so that drag events
+    // (splitter/column resize) are forwarded to the same widget for the
+    // entire press-move-release sequence, matching Qt's native grab behaviour.
+    QWidget* m_pGrabbedWidget = nullptr;
 };
 
 } // namespace qml

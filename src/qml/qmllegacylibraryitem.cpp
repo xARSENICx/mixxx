@@ -1,10 +1,13 @@
 #include "qml/qmllegacylibraryitem.h"
 
 #include <QApplication>
+#include <QDir>
+#include <QFile>
 #include <QLabel>
 #include <QPainter>
 #include <QPushButton>
 #include <QSplitter>
+#include <QTimer>
 #include <QVBoxLayout>
 
 #include "library/library.h"
@@ -74,6 +77,23 @@ QmlLegacyLibraryItem::QmlLegacyLibraryItem(QQuickItem* parent)
     } else {
         qWarning() << "QmlLegacyLibraryItem: Library singleton not available!";
     }
+
+    // 8. [PoC hack] Apply the LateNight classic stylesheet so the embedded
+    //    QWidget tree renders branch arrows, preview button icons, and other
+    //    SVG-based decorations that are normally applied by LegacySkinParser.
+    //    TODO(GSoC): Replace with the QQuickAsyncImageProvider "skin:" scheme
+    //    and QML palette bindings once the library panel is ported to QML.
+    applyLegacyStylesheet();
+
+    // 9. Periodic repaint timer (~30 fps) to flush async widget repaints
+    //    (hover state changes, scrollbar animations, delegate updates) to the
+    //    QML scene.  The QWidget tree repaints into its backing store silently
+    //    because WA_DontShowOnScreen suppresses normal screen updates.
+    //    TODO(GSoC): Replace with an event-filter on the root widget that
+    //    intercepts QEvent::UpdateRequest so we only repaint when needed.
+    auto* pRepaintTimer = new QTimer(this);
+    connect(pRepaintTimer, &QTimer::timeout, this, [this]() { update(); });
+    pRepaintTimer->start(33); // ~30 fps
 }
 
 void QmlLegacyLibraryItem::paint(QPainter* pPainter) {
@@ -94,12 +114,19 @@ void QmlLegacyLibraryItem::geometryChange(
 }
 
 namespace {
-bool forwardMouseEventToWidget(QWidget* root, QMouseEvent* event, QQuickItem* item) {
+// Forward a mouse event to the correct child widget.
+// pGrabbedWidget: if non-null, the widget that received the press event;
+// subsequent move/release events bypass childAt() and go directly to it,
+// emulating Qt's native implicit mouse grab during drag operations.
+bool forwardMouseEventToWidget(QWidget* root,
+        QMouseEvent* event,
+        QQuickItem* item,
+        QWidget* pGrabbedWidget = nullptr) {
     if (!root) {
         return false;
     }
 
-    QWidget* child = root->childAt(event->position().toPoint());
+    QWidget* child = pGrabbedWidget ? pGrabbedWidget : root->childAt(event->position().toPoint());
     if (!child) {
         child = root;
     }
@@ -187,15 +214,25 @@ bool forwardHoverEventToWidget(QWidget* root, QHoverEvent* event, QQuickItem* it
 } // namespace
 
 void QmlLegacyLibraryItem::mousePressEvent(QMouseEvent* event) {
-    if (forwardMouseEventToWidget(m_pRootWidget.get(), event, this)) {
-        update(); // Trigger repaint
+    // Record which child widget received the press so that the entire
+    // drag gesture (move + release) is routed to the same widget.
+    QWidget* child = m_pRootWidget
+            ? m_pRootWidget->childAt(event->position().toPoint())
+            : nullptr;
+    m_pGrabbedWidget = child ? child : m_pRootWidget.get();
+
+    if (forwardMouseEventToWidget(m_pRootWidget.get(), event, this, m_pGrabbedWidget)) {
+        update();
     } else {
+        m_pGrabbedWidget = nullptr;
         QQuickPaintedItem::mousePressEvent(event);
     }
 }
 
 void QmlLegacyLibraryItem::mouseReleaseEvent(QMouseEvent* event) {
-    if (forwardMouseEventToWidget(m_pRootWidget.get(), event, this)) {
+    QWidget* grabbed = m_pGrabbedWidget;
+    m_pGrabbedWidget = nullptr; // Clear before forwarding
+    if (forwardMouseEventToWidget(m_pRootWidget.get(), event, this, grabbed)) {
         update();
     } else {
         QQuickPaintedItem::mouseReleaseEvent(event);
@@ -203,7 +240,7 @@ void QmlLegacyLibraryItem::mouseReleaseEvent(QMouseEvent* event) {
 }
 
 void QmlLegacyLibraryItem::mouseMoveEvent(QMouseEvent* event) {
-    if (forwardMouseEventToWidget(m_pRootWidget.get(), event, this)) {
+    if (forwardMouseEventToWidget(m_pRootWidget.get(), event, this, m_pGrabbedWidget)) {
         update();
     } else {
         QQuickPaintedItem::mouseMoveEvent(event);
@@ -264,6 +301,43 @@ void QmlLegacyLibraryItem::updateWidgetSize() {
 
     m_pRootWidget->resize(widgetSize);
     m_pRootWidget->ensurePolished();
+}
+
+// [PoC hack] Loads style_classic.qss from the LateNight skin directory and
+// applies it to the root widget so that the embedded QWidget tree picks up
+// SVG branch arrows, preview button icons, and colour tokens.
+//
+// The legacy QSS uses a custom "skins:" URL scheme that only LegacySkinParser
+// knows how to resolve.  We emulate it with a simple string replacement that
+// expands "skins:" to the absolute skins/ directory path.
+//
+// TODO(GSoC): This whole method can be deleted once the library panel is
+// ported to QML. At that point styling is handled by the "skin:" image
+// provider (QQuickAsyncImageProvider subclass) and pure QML property bindings,
+// which is the architecture described in the GSoC proposal.
+void QmlLegacyLibraryItem::applyLegacyStylesheet() {
+    const QString resourcePath =
+            QmlConfigProxy::get()->getResourcePath();
+    const QString skinsRoot = resourcePath + QStringLiteral("skins/");
+    const QString styleFilePath =
+            skinsRoot + QStringLiteral("LateNight/style_classic.qss");
+
+    QFile styleFile(styleFilePath);
+    if (!styleFile.open(QIODevice::ReadOnly | QIODevice::Text)) {
+        qWarning() << "QmlLegacyLibraryItem: could not open" << styleFilePath
+                   << "- library will have no custom styling";
+        return;
+    }
+
+    QString style = QString::fromUtf8(styleFile.readAll());
+
+    // Resolve the "skins:" URL alias used throughout the QSS file.
+    // LegacySkinParser does the same replacement in processStyleNodes().
+    style.replace(QStringLiteral("url(skins:"),
+            QStringLiteral("url(") + skinsRoot);
+
+    m_pRootWidget->setStyleSheet(style);
+    qDebug() << "QmlLegacyLibraryItem: applied LateNight legacy stylesheet";
 }
 
 } // namespace qml
