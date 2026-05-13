@@ -1,25 +1,36 @@
 #include "qml/qmllegacylibraryitem.h"
 
+#include <QAbstractItemView>
 #include <QApplication>
 #include <QDir>
+#include <QDomDocument>
 #include <QFile>
+#include <QHeaderView>
 #include <QLabel>
 #include <QPainter>
 #include <QPushButton>
+#include <QScrollBar>
 #include <QSplitter>
+#include <QStyle>
 #include <QTimer>
 #include <QVBoxLayout>
+#include <cmath>
 
+#include "control/controlproxy.h"
 #include "library/library.h"
+#include "mixer/playermanager.h"
 #include "moc_qmllegacylibraryitem.cpp"
 #include "qml/qmlconfigproxy.h"
 #include "qml/qmllibraryproxy.h"
+#include "skin/legacy/skincontext.h"
 #include "widget/wlibrary.h"
 #include "widget/wlibrarysidebar.h"
 #include "widget/wsearchlineedit.h"
 
 namespace mixxx {
 namespace qml {
+
+QmlLegacyLibraryItem::~QmlLegacyLibraryItem() = default;
 
 QmlLegacyLibraryItem::QmlLegacyLibraryItem(QQuickItem* parent)
         : QQuickPaintedItem(parent),
@@ -33,6 +44,7 @@ QmlLegacyLibraryItem::QmlLegacyLibraryItem(QQuickItem* parent)
 
     m_pRootWidget->setAutoFillBackground(true);
     m_pRootWidget->setAttribute(Qt::WA_DontShowOnScreen);
+    m_pRootWidget->setObjectName(QStringLiteral("LibraryContainer"));
     // 1. Create splitter layout
     auto* pSplitter = new QSplitter(m_pRootWidget.get());
 
@@ -50,6 +62,8 @@ QmlLegacyLibraryItem::QmlLegacyLibraryItem(QQuickItem* parent)
 
     // 3. Library (main content area)
     m_pLibraryWidget = new WLibrary(pSplitter);
+    m_pLibraryWidget->setObjectName(QStringLiteral("LibraryContainer"));
+    applyLegacyLibrarySkinConfiguration();
 
     // 4. Add to splitter
     pSplitter->addWidget(pSidebarPage);
@@ -68,9 +82,18 @@ QmlLegacyLibraryItem::QmlLegacyLibraryItem(QQuickItem* parent)
         pLibrary->bindSidebarWidget(m_pSidebar);
         pLibrary->bindLibraryWidget(m_pLibraryWidget, QmlLibraryProxy::getKeyboard());
 
-        // 7. Trigger repaints on visual changes
-        connect(pLibrary, &Library::switchToView, this, [this]() { update(); });
-        connect(pLibrary, &Library::showTrackModel, this, [this]() { update(); });
+        // 7. Trigger repaints on visual changes and refresh input tracking for
+        //    views that are created or swapped after the initial bind.
+        connect(pLibrary, &Library::switchToView, this, [this]() {
+            enableEmbeddedWidgetInputTracking();
+            applyLegacyScrollbarStyles();
+            repaintEmbeddedViews();
+        });
+        connect(pLibrary, &Library::showTrackModel, this, [this]() {
+            enableEmbeddedWidgetInputTracking();
+            applyLegacyScrollbarStyles();
+            repaintEmbeddedViews();
+        });
 
         // Initialize default view to Tracks collection to avoid black screen
         pLibrary->searchTracksInCollection();
@@ -84,6 +107,27 @@ QmlLegacyLibraryItem::QmlLegacyLibraryItem(QQuickItem* parent)
     //    TODO(GSoC): Replace with the QQuickAsyncImageProvider "skin:" scheme
     //    and QML palette bindings once the library panel is ported to QML.
     applyLegacyStylesheet();
+    repolishEmbeddedWidgets();
+    enableEmbeddedWidgetInputTracking();
+    applyLegacyScrollbarStyles();
+
+    const QString previewDeckGroup = PlayerManager::groupForPreviewDeck(0);
+    m_pPreviewDeckPlay = std::make_unique<ControlProxy>(
+            previewDeckGroup,
+            QStringLiteral("play"),
+            this,
+            ControlFlag::NoAssertIfMissing);
+    m_pPreviewDeckTrackLoaded = std::make_unique<ControlProxy>(
+            previewDeckGroup,
+            QStringLiteral("track_loaded"),
+            this,
+            ControlFlag::NoAssertIfMissing);
+    m_pPreviewDeckPlay->connectValueChanged(this, [this](double) {
+        repaintEmbeddedViews();
+    });
+    m_pPreviewDeckTrackLoaded->connectValueChanged(this, [this](double) {
+        repaintEmbeddedViews();
+    });
 
     // 9. Periodic repaint timer (~30 fps) to flush async widget repaints
     //    (hover state changes, scrollbar animations, delegate updates) to the
@@ -114,59 +158,128 @@ void QmlLegacyLibraryItem::geometryChange(
 }
 
 namespace {
-// Forward a mouse event to the correct child widget.
-// pGrabbedWidget: if non-null, the widget that received the press event;
-// subsequent move/release events bypass childAt() and go directly to it,
-// emulating Qt's native implicit mouse grab during drag operations.
-bool forwardMouseEventToWidget(QWidget* root,
-        QMouseEvent* event,
-        QQuickItem* item,
-        QWidget* pGrabbedWidget = nullptr) {
-    if (!root) {
+constexpr int kHeaderResizeCursorMargin = 4;
+
+QPointF widgetScenePos(QWidget* target, QWidget* root, const QPoint& rootPos) {
+    return QPointF(target->mapFrom(root, rootPos));
+}
+} // namespace
+
+QWidget* QmlLegacyLibraryItem::widgetAtRootPos(const QPoint& rootPos) const {
+    if (!m_pRootWidget) {
+        return nullptr;
+    }
+
+    QWidget* widget = m_pRootWidget->childAt(rootPos);
+    if (!widget) {
+        return m_pRootWidget.get();
+    }
+
+    while (QWidget* child = widget->childAt(widget->mapFrom(m_pRootWidget.get(), rootPos))) {
+        if (child == widget) {
+            break;
+        }
+        widget = child;
+    }
+    return widget;
+}
+
+QAbstractItemView* QmlLegacyLibraryItem::parentItemView(QWidget* widget) const {
+    for (QWidget* current = widget; current; current = current->parentWidget()) {
+        if (auto* view = qobject_cast<QAbstractItemView*>(current)) {
+            return view;
+        }
+    }
+    return nullptr;
+}
+
+QHeaderView* QmlLegacyLibraryItem::parentHeaderView(QWidget* widget) const {
+    for (QWidget* current = widget; current; current = current->parentWidget()) {
+        if (auto* header = qobject_cast<QHeaderView*>(current)) {
+            return header;
+        }
+    }
+    return nullptr;
+}
+
+QWidget* QmlLegacyLibraryItem::eventTargetFor(QWidget* widget) const {
+    if (!widget) {
+        return m_pRootWidget.get();
+    }
+
+    if (auto* view = parentItemView(widget)) {
+        QWidget* viewport = view->viewport();
+        if (viewport && (widget == view || widget == viewport)) {
+            return viewport;
+        }
+    }
+    return widget;
+}
+
+bool QmlLegacyLibraryItem::sendMouseToWidget(QMouseEvent* event, QWidget* target) {
+    if (!m_pRootWidget || !target) {
         return false;
     }
 
-    QWidget* child = pGrabbedWidget ? pGrabbedWidget : root->childAt(event->position().toPoint());
-    if (!child) {
-        child = root;
-    }
+    const QPoint rootPos = event->position().toPoint();
+    updateHoverTarget(target, rootPos, event->modifiers());
 
-    QPoint childPos = child->mapFrom(root, event->position().toPoint());
-
+    const QPointF targetPos = widgetScenePos(target, m_pRootWidget.get(), rootPos);
     QMouseEvent mappedEvent(
             event->type(),
-            childPos,
+            targetPos,
+            event->scenePosition(),
             event->globalPosition(),
             event->button(),
             event->buttons(),
-            event->modifiers());
+            event->modifiers(),
+            event->source());
 
-    bool accepted = QApplication::sendEvent(child, &mappedEvent);
-    event->setAccepted(accepted);
+    QApplication::sendEvent(target, &mappedEvent);
+    event->setAccepted(mappedEvent.isAccepted());
+    m_pressedButtons = event->buttons();
 
-    if (child->testAttribute(Qt::WA_SetCursor)) {
-        item->setCursor(child->cursor());
-    } else {
-        item->unsetCursor();
-    }
-
-    return accepted;
+    syncCursorFromWidget(target, rootPos);
+    return mappedEvent.isAccepted();
 }
 
-bool forwardWheelEventToWidget(QWidget* root, QWheelEvent* event) {
-    if (!root) {
+void QmlLegacyLibraryItem::sendSyntheticMouseMoveToWidget(QWidget* target,
+        const QPoint& rootPos,
+        const QPointF& globalPos,
+        Qt::KeyboardModifiers modifiers,
+        Qt::MouseButtons buttons) {
+    if (!m_pRootWidget || !target) {
+        return;
+    }
+
+    const QPointF targetPos = widgetScenePos(target, m_pRootWidget.get(), rootPos);
+    QMouseEvent moveEvent(
+            QEvent::MouseMove,
+            targetPos,
+            QPointF(rootPos),
+            globalPos,
+            Qt::NoButton,
+            buttons,
+            modifiers);
+    QApplication::sendEvent(target, &moveEvent);
+    syncCursorFromWidget(target, rootPos);
+}
+
+bool QmlLegacyLibraryItem::sendWheelToWidget(QWheelEvent* event) {
+    if (!m_pRootWidget) {
         return false;
     }
 
-    QWidget* child = root->childAt(event->position().toPoint());
-    if (!child) {
-        child = root;
+    QWidget* target = eventTargetFor(widgetAtRootPos(event->position().toPoint()));
+    if (!target) {
+        return false;
     }
 
-    QPoint childPos = child->mapFrom(root, event->position().toPoint());
+    const QPoint rootPos = event->position().toPoint();
+    updateHoverTarget(target, rootPos, event->modifiers());
 
     QWheelEvent mappedEvent(
-            childPos,
+            widgetScenePos(target, m_pRootWidget.get(), rootPos),
             event->globalPosition(),
             event->pixelDelta(),
             event->angleDelta(),
@@ -175,72 +288,331 @@ bool forwardWheelEventToWidget(QWidget* root, QWheelEvent* event) {
             event->phase(),
             event->inverted());
 
-    bool accepted = QApplication::sendEvent(child, &mappedEvent);
-    event->setAccepted(accepted);
-    return accepted;
+    QApplication::sendEvent(target, &mappedEvent);
+    event->setAccepted(mappedEvent.isAccepted());
+    syncCursorFromWidget(target, rootPos);
+    return mappedEvent.isAccepted();
 }
 
-bool forwardHoverEventToWidget(QWidget* root, QHoverEvent* event, QQuickItem* item) {
-    if (!root) {
+bool QmlLegacyLibraryItem::sendHoverToWidget(QHoverEvent* event) {
+    if (!m_pRootWidget) {
         return false;
     }
 
-    QWidget* child = root->childAt(event->position().toPoint());
-    if (!child) {
-        child = root;
+    QWidget* target = eventTargetFor(widgetAtRootPos(event->position().toPoint()));
+    if (!target) {
+        return false;
     }
 
-    QPoint childPos = child->mapFrom(root, event->position().toPoint());
-    QPoint oldChildPos = child->mapFrom(root, event->oldPos());
+    const QPoint rootPos = event->position().toPoint();
+    updateHoverTarget(target, rootPos, event->modifiers());
 
+    const QPoint targetPos = target->mapFrom(m_pRootWidget.get(), rootPos);
+    const QPoint oldTargetPos = target->mapFrom(m_pRootWidget.get(), event->oldPos());
     QHoverEvent mappedEvent(
             event->type(),
-            childPos,
+            targetPos,
             event->globalPosition(),
-            oldChildPos,
+            oldTargetPos,
             event->modifiers());
 
-    bool accepted = QApplication::sendEvent(child, &mappedEvent);
-    event->setAccepted(accepted);
+    QApplication::sendEvent(target, &mappedEvent);
+    event->setAccepted(mappedEvent.isAccepted());
+    m_lastHoverRootPos = event->position();
 
-    if (child->testAttribute(Qt::WA_SetCursor)) {
-        item->setCursor(child->cursor());
-    } else {
-        item->unsetCursor();
+    // QTableView::entered(), which PreviewButtonDelegate uses to open the
+    // real QPushButton editor, is driven by mouse tracking rather than
+    // QHoverEvent delivery. Mirror QQuick hover as a no-button mouse move so
+    // item-view delegates see the same path they get in a native QWidget skin.
+    sendSyntheticMouseMoveToWidget(target, rootPos, event->globalPosition(), event->modifiers());
+
+    syncCursorFromWidget(target, rootPos);
+    return mappedEvent.isAccepted();
+}
+
+void QmlLegacyLibraryItem::updateHoverTarget(
+        QWidget* target,
+        const QPoint& rootPos,
+        Qt::KeyboardModifiers modifiers) {
+    if (!target || target == m_pLastHoverWidget) {
+        return;
     }
 
-    return accepted;
+    if (m_pLastHoverWidget) {
+        QEvent leaveEvent(QEvent::Leave);
+        QApplication::sendEvent(m_pLastHoverWidget, &leaveEvent);
+    }
+
+    const QPointF targetPos = widgetScenePos(target, m_pRootWidget.get(), rootPos);
+    Q_UNUSED(modifiers);
+    QEnterEvent enterEvent(targetPos,
+            QPointF(rootPos),
+            QPointF(target->mapToGlobal(targetPos.toPoint())));
+    QApplication::sendEvent(target, &enterEvent);
+    m_pLastHoverWidget = target;
 }
-} // namespace
+
+bool QmlLegacyLibraryItem::isHeaderResizeHandle(QHeaderView* header, const QPoint& rootPos) const {
+    if (!header || !m_pRootWidget) {
+        return false;
+    }
+
+    const QPoint headerPos = header->mapFrom(m_pRootWidget.get(), rootPos);
+    const int logicalIndex = header->logicalIndexAt(headerPos);
+    if (logicalIndex < 0) {
+        return false;
+    }
+
+    const int sectionStart = header->sectionViewportPosition(logicalIndex);
+    const int sectionEnd = sectionStart + header->sectionSize(logicalIndex);
+    const int cursorPos = header->orientation() == Qt::Horizontal ? headerPos.x() : headerPos.y();
+    return std::abs(cursorPos - sectionStart) <= kHeaderResizeCursorMargin ||
+            std::abs(cursorPos - sectionEnd) <= kHeaderResizeCursorMargin;
+}
+
+void QmlLegacyLibraryItem::maybeApplyHeaderSortFallback(
+        QHeaderView* header, const QPoint& rootPos) {
+    if (!header || header != m_pPressedHeader || m_pressedHeaderSection < 0) {
+        return;
+    }
+    if (isHeaderResizeHandle(header, rootPos)) {
+        return;
+    }
+    if ((rootPos - m_pressRootPos).manhattanLength() > QApplication::startDragDistance()) {
+        return;
+    }
+
+    const QPoint headerPos = header->mapFrom(m_pRootWidget.get(), rootPos);
+    const int releaseSection = header->logicalIndexAt(headerPos);
+    if (releaseSection != m_pressedHeaderSection || !header->sectionsClickable()) {
+        return;
+    }
+
+    if (header->sortIndicatorSection() != m_pressedHeaderSortSection ||
+            header->sortIndicatorOrder() != m_pressedHeaderSortOrder) {
+        return;
+    }
+
+    const Qt::SortOrder order = header->sortIndicatorSection() == releaseSection
+            ? (header->sortIndicatorOrder() == Qt::AscendingOrder
+                              ? Qt::DescendingOrder
+                              : Qt::AscendingOrder)
+            : Qt::AscendingOrder;
+    header->setSortIndicator(releaseSection, order);
+    header->update();
+}
+
+void QmlLegacyLibraryItem::syncCursorFromWidget(QWidget* target, const QPoint& rootPos) {
+    if (!target) {
+        unsetCursor();
+        return;
+    }
+
+    if (auto* header = parentHeaderView(target)) {
+        if (isHeaderResizeHandle(header, rootPos)) {
+            setCursor(header->orientation() == Qt::Horizontal
+                            ? Qt::SplitHCursor
+                            : Qt::SplitVCursor);
+            return;
+        }
+    }
+
+    for (QWidget* current = target; current; current = current->parentWidget()) {
+        if (current->testAttribute(Qt::WA_SetCursor)) {
+            setCursor(current->cursor());
+            return;
+        }
+    }
+    unsetCursor();
+}
+
+void QmlLegacyLibraryItem::repaintEmbeddedViews() {
+    if (!m_pRootWidget) {
+        return;
+    }
+
+    const auto views = m_pRootWidget->findChildren<QAbstractItemView*>();
+    for (QAbstractItemView* view : views) {
+        if (view->viewport()) {
+            view->viewport()->update();
+        }
+        view->update();
+    }
+    update();
+}
+
+void QmlLegacyLibraryItem::applyLegacyScrollbarStyle(QScrollBar* scrollBar) {
+    if (!scrollBar) {
+        return;
+    }
+
+    const QString scrollBarStyle = QStringLiteral(R"MIXXXQSS(
+QScrollBar {
+  border: 0px solid #585858;
+  background: #000;
+  border-radius: 2px;
+  padding: 1px;
+  color: #999999;
+}
+QScrollBar:horizontal {
+  min-width: 12px;
+  height: 15px;
+  border-top-left-radius: 0px;
+  border-top-right-radius: 0px;
+  background-color: #000;
+}
+QScrollBar:vertical {
+  min-height: 12px;
+  width: 15px;
+  border-top-left-radius: 0px;
+  border-bottom-left-radius: 0px;
+  color: #b3b3b3;
+  background-color: #000;
+}
+QScrollBar::groove:horizontal {
+  height: 15px;
+  background-color: #000;
+  border: 0px;
+}
+QScrollBar::groove:vertical {
+  width: 15px;
+  background-color: #000;
+  border: 0px;
+}
+QScrollBar::handle:horizontal {
+  min-width: 25px;
+  border-radius: 2px;
+  background: qlineargradient(x1:0, y1:0, x2:0, y2:1, stop:0 #725309, stop:1 #412f05);
+}
+QScrollBar::handle:vertical {
+  min-height: 25px;
+  border-radius: 2px;
+  background: qlineargradient(x1:0, y1:0, x2:0, y2:1, stop:0 #725309, stop:1 #412f05);
+}
+QScrollBar::add-page, QScrollBar::sub-page {
+  min-width: 15px;
+  min-height: 15px;
+  background-color: #000;
+  border-radius: 2px;
+}
+QScrollBar::add-line, QScrollBar::sub-line {
+  width: 0px;
+  height: 0px;
+  border: 0px;
+}
+)MIXXXQSS");
+
+    scrollBar->setAttribute(Qt::WA_StyledBackground, true);
+    scrollBar->setAutoFillBackground(true);
+    scrollBar->setStyleSheet(scrollBarStyle);
+    if (QStyle* style = scrollBar->style()) {
+        style->unpolish(scrollBar);
+        style->polish(scrollBar);
+    }
+    scrollBar->ensurePolished();
+    scrollBar->update();
+}
+
+void QmlLegacyLibraryItem::applyLegacyScrollbarStyles() {
+    if (!m_pRootWidget) {
+        return;
+    }
+
+    const auto scrollBars = m_pRootWidget->findChildren<QScrollBar*>();
+    for (QScrollBar* scrollBar : scrollBars) {
+        applyLegacyScrollbarStyle(scrollBar);
+    }
+}
+
+void QmlLegacyLibraryItem::repolishEmbeddedWidgets() {
+    if (!m_pRootWidget) {
+        return;
+    }
+
+    QList<QWidget*> widgets = m_pRootWidget->findChildren<QWidget*>();
+    widgets.prepend(m_pRootWidget.get());
+    for (QWidget* widget : widgets) {
+        if (QStyle* style = widget->style()) {
+            style->unpolish(widget);
+            style->polish(widget);
+        }
+        widget->ensurePolished();
+        widget->update();
+    }
+}
+
+void QmlLegacyLibraryItem::enableEmbeddedWidgetInputTracking() {
+    if (!m_pRootWidget) {
+        return;
+    }
+
+    QList<QWidget*> widgets = m_pRootWidget->findChildren<QWidget*>();
+    widgets.prepend(m_pRootWidget.get());
+    for (QWidget* widget : widgets) {
+        widget->setMouseTracking(true);
+        widget->setAttribute(Qt::WA_Hover, true);
+        widget->setAttribute(Qt::WA_NoMousePropagation, false);
+    }
+}
 
 void QmlLegacyLibraryItem::mousePressEvent(QMouseEvent* event) {
-    // Record which child widget received the press so that the entire
-    // drag gesture (move + release) is routed to the same widget.
-    QWidget* child = m_pRootWidget
-            ? m_pRootWidget->childAt(event->position().toPoint())
-            : nullptr;
-    m_pGrabbedWidget = child ? child : m_pRootWidget.get();
+    const QPoint rootPos = event->position().toPoint();
+    QWidget* target = eventTargetFor(widgetAtRootPos(rootPos));
+    sendSyntheticMouseMoveToWidget(target, rootPos, event->globalPosition(), event->modifiers());
+    target = eventTargetFor(widgetAtRootPos(rootPos));
+    m_pPressedWidget = target;
+    m_pGrabbedWidget = target;
+    m_pressedButtons = event->buttons();
+    m_pressRootPos = rootPos;
+    m_pPressedHeader.clear();
+    m_pressedHeaderSection = -1;
+    if (event->button() == Qt::LeftButton) {
+        if (auto* header = parentHeaderView(target)) {
+            if (!isHeaderResizeHandle(header, rootPos)) {
+                m_pPressedHeader = header;
+                m_pressedHeaderSection = header->logicalIndexAt(
+                        header->mapFrom(m_pRootWidget.get(), rootPos));
+                m_pressedHeaderSortSection = header->sortIndicatorSection();
+                m_pressedHeaderSortOrder = header->sortIndicatorOrder();
+            }
+        }
+    }
 
-    if (forwardMouseEventToWidget(m_pRootWidget.get(), event, this, m_pGrabbedWidget)) {
-        update();
+    if (sendMouseToWidget(event, target)) {
+        repaintEmbeddedViews();
     } else {
-        m_pGrabbedWidget = nullptr;
+        m_pPressedWidget.clear();
+        m_pGrabbedWidget.clear();
         QQuickPaintedItem::mousePressEvent(event);
     }
 }
 
 void QmlLegacyLibraryItem::mouseReleaseEvent(QMouseEvent* event) {
-    QWidget* grabbed = m_pGrabbedWidget;
-    m_pGrabbedWidget = nullptr; // Clear before forwarding
-    if (forwardMouseEventToWidget(m_pRootWidget.get(), event, this, grabbed)) {
-        update();
+    const QPoint rootPos = event->position().toPoint();
+    QWidget* target = m_pGrabbedWidget
+            ? m_pGrabbedWidget.data()
+            : eventTargetFor(widgetAtRootPos(rootPos));
+    const bool accepted = sendMouseToWidget(event, target);
+    if (event->button() == Qt::LeftButton) {
+        maybeApplyHeaderSortFallback(parentHeaderView(target), rootPos);
+    }
+    if (accepted) {
+        repaintEmbeddedViews();
     } else {
         QQuickPaintedItem::mouseReleaseEvent(event);
     }
+    m_pPressedWidget.clear();
+    m_pGrabbedWidget.clear();
+    m_pPressedHeader.clear();
+    m_pressedHeaderSection = -1;
+    m_pressedButtons = Qt::NoButton;
 }
 
 void QmlLegacyLibraryItem::mouseMoveEvent(QMouseEvent* event) {
-    if (forwardMouseEventToWidget(m_pRootWidget.get(), event, this, m_pGrabbedWidget)) {
+    QWidget* target = m_pGrabbedWidget
+            ? m_pGrabbedWidget.data()
+            : eventTargetFor(widgetAtRootPos(event->position().toPoint()));
+    if (sendMouseToWidget(event, target)) {
         update();
     } else {
         QQuickPaintedItem::mouseMoveEvent(event);
@@ -248,15 +620,21 @@ void QmlLegacyLibraryItem::mouseMoveEvent(QMouseEvent* event) {
 }
 
 void QmlLegacyLibraryItem::mouseDoubleClickEvent(QMouseEvent* event) {
-    if (forwardMouseEventToWidget(m_pRootWidget.get(), event, this)) {
-        update();
+    const QPoint rootPos = event->position().toPoint();
+    QWidget* target = eventTargetFor(widgetAtRootPos(rootPos));
+    sendSyntheticMouseMoveToWidget(target, rootPos, event->globalPosition(), event->modifiers());
+    target = eventTargetFor(widgetAtRootPos(rootPos));
+    m_pPressedWidget = target;
+    m_pGrabbedWidget = target;
+    if (sendMouseToWidget(event, target)) {
+        repaintEmbeddedViews();
     } else {
         QQuickPaintedItem::mouseDoubleClickEvent(event);
     }
 }
 
 void QmlLegacyLibraryItem::wheelEvent(QWheelEvent* event) {
-    if (forwardWheelEventToWidget(m_pRootWidget.get(), event)) {
+    if (sendWheelToWidget(event)) {
         update();
     } else {
         QQuickPaintedItem::wheelEvent(event);
@@ -264,7 +642,7 @@ void QmlLegacyLibraryItem::wheelEvent(QWheelEvent* event) {
 }
 
 void QmlLegacyLibraryItem::hoverEnterEvent(QHoverEvent* event) {
-    if (forwardHoverEventToWidget(m_pRootWidget.get(), event, this)) {
+    if (sendHoverToWidget(event)) {
         update();
     } else {
         QQuickPaintedItem::hoverEnterEvent(event);
@@ -272,7 +650,7 @@ void QmlLegacyLibraryItem::hoverEnterEvent(QHoverEvent* event) {
 }
 
 void QmlLegacyLibraryItem::hoverMoveEvent(QHoverEvent* event) {
-    if (forwardHoverEventToWidget(m_pRootWidget.get(), event, this)) {
+    if (sendHoverToWidget(event)) {
         update();
     } else {
         QQuickPaintedItem::hoverMoveEvent(event);
@@ -280,11 +658,14 @@ void QmlLegacyLibraryItem::hoverMoveEvent(QHoverEvent* event) {
 }
 
 void QmlLegacyLibraryItem::hoverLeaveEvent(QHoverEvent* event) {
-    if (forwardHoverEventToWidget(m_pRootWidget.get(), event, this)) {
-        update();
-    } else {
-        QQuickPaintedItem::hoverLeaveEvent(event);
+    if (m_pLastHoverWidget) {
+        QEvent leaveEvent(QEvent::Leave);
+        QApplication::sendEvent(m_pLastHoverWidget, &leaveEvent);
+        m_pLastHoverWidget.clear();
     }
+    unsetCursor();
+    update();
+    QQuickPaintedItem::hoverLeaveEvent(event);
 }
 
 void QmlLegacyLibraryItem::updateWidgetSize() {
@@ -303,6 +684,35 @@ void QmlLegacyLibraryItem::updateWidgetSize() {
     m_pRootWidget->ensurePolished();
 }
 
+void QmlLegacyLibraryItem::applyLegacyLibrarySkinConfiguration() {
+    if (!m_pLibraryWidget) {
+        return;
+    }
+
+    const QString resourcePath = QmlConfigProxy::get()->getResourcePath();
+    const QString lateNightSkinPath = resourcePath + QStringLiteral("skins/LateNight");
+
+    SkinContext context(QmlConfigProxy::get(), lateNightSkinPath + QStringLiteral("/skin.xml"));
+    context.setSkinBasePath(lateNightSkinPath);
+
+    QDomDocument document(QStringLiteral("QmlLegacyLibraryItemLibrarySetup"));
+    const QString libraryXml = QStringLiteral(
+            "<Library>"
+            "<ShowButtonText>false</ShowButtonText>"
+            "<TrackTableBackgroundColorOpacity>0.175</TrackTableBackgroundColorOpacity>"
+            "<SignalColor>#e7c413</SignalColor>"
+            "</Library>");
+    const QDomDocument::ParseResult parseResult = document.setContent(libraryXml);
+    if (!parseResult) {
+        qWarning() << "QmlLegacyLibraryItem: failed to parse library skin setup"
+                   << parseResult.errorMessage << parseResult.errorLine
+                   << parseResult.errorColumn;
+        return;
+    }
+
+    m_pLibraryWidget->setup(document.documentElement(), context);
+}
+
 // [PoC hack] Loads style_classic.qss from the LateNight skin directory and
 // applies it to the root widget so that the embedded QWidget tree picks up
 // SVG branch arrows, preview button icons, and colour tokens.
@@ -318,7 +728,12 @@ void QmlLegacyLibraryItem::updateWidgetSize() {
 void QmlLegacyLibraryItem::applyLegacyStylesheet() {
     const QString resourcePath =
             QmlConfigProxy::get()->getResourcePath();
-    const QString skinsRoot = resourcePath + QStringLiteral("skins/");
+    const QString skinsRoot = QDir::fromNativeSeparators(
+            resourcePath + QStringLiteral("skins/"));
+    const QString lateNightSkinRoot = QDir::fromNativeSeparators(
+            resourcePath + QStringLiteral("skins/LateNight"));
+    QDir::setSearchPaths(QStringLiteral("skins"), {skinsRoot});
+    QDir::setSearchPaths(QStringLiteral("skin"), {lateNightSkinRoot});
     const QString styleFilePath =
             skinsRoot + QStringLiteral("LateNight/style_classic.qss");
 
@@ -335,6 +750,20 @@ void QmlLegacyLibraryItem::applyLegacyStylesheet() {
     // LegacySkinParser does the same replacement in processStyleNodes().
     style.replace(QStringLiteral("url(skins:"),
             QStringLiteral("url(") + skinsRoot);
+    style.replace(QStringLiteral("url(\"skins:"),
+            QStringLiteral("url(\"") + skinsRoot);
+    style.replace(QStringLiteral("url('skins:"),
+            QStringLiteral("url('") + skinsRoot);
+
+    // In the offscreen bridge Qt sometimes falls back to the SVG viewBox size
+    // for QHeaderView sort subcontrols. Pin the indicator size to match the
+    // native LateNight header instead of rendering a tiny dot.
+    style.append(QStringLiteral(
+            "\nWTrackTableViewHeader::up-arrow,"
+            "\nWTrackTableViewHeader::down-arrow {"
+            "\n  width: 14px;"
+            "\n  height: 14px;"
+            "\n}"));
 
     m_pRootWidget->setStyleSheet(style);
     qDebug() << "QmlLegacyLibraryItem: applied LateNight legacy stylesheet";
