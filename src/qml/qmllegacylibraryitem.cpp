@@ -2,17 +2,21 @@
 
 #include <QAbstractItemView>
 #include <QApplication>
+#include <QContextMenuEvent>
 #include <QDir>
 #include <QDomDocument>
 #include <QFile>
+#include <QGuiApplication>
 #include <QHeaderView>
 #include <QLabel>
 #include <QMetaEnum>
 #include <QPainter>
 #include <QPushButton>
+#include <QQuickWindow>
 #include <QScrollBar>
 #include <QSplitter>
 #include <QStyle>
+#include <QStyleHints>
 #include <QTableView>
 #include <QTimer>
 #include <QVBoxLayout>
@@ -30,6 +34,7 @@
 #include "widget/wlibrary.h"
 #include "widget/wlibrarysidebar.h"
 #include "widget/wsearchlineedit.h"
+#include "widget/wtracktableviewheader.h"
 
 namespace mixxx {
 namespace qml {
@@ -160,6 +165,7 @@ void QmlLegacyLibraryItem::renderOffscreen() {
     if (!m_pRootWidget) {
         return;
     }
+    syncRootWidgetGlobalPosition();
     updateWidgetSize();
     const QSize size(qMax(1, qRound(width())),
             qMax(1, qRound(height())));
@@ -191,6 +197,12 @@ constexpr int kHeaderResizeCursorMargin = 4;
 
 QPointF widgetScenePos(QWidget* target, QWidget* root, const QPoint& rootPos) {
     return QPointF(target->mapFrom(root, rootPos));
+}
+
+bool isContextMenuOnMouseRelease() {
+    const QStyleHints* styleHints = QGuiApplication::styleHints();
+    return styleHints &&
+            styleHints->contextMenuTrigger() == Qt::ContextMenuTrigger::Release;
 }
 } // namespace
 
@@ -250,6 +262,66 @@ QWidget* QmlLegacyLibraryItem::eventTargetFor(QWidget* widget) const {
         }
     }
     return widget;
+}
+
+QWidget* QmlLegacyLibraryItem::contextMenuTargetFor(QWidget* widget) const {
+    if (!widget) {
+        return m_pRootWidget.get();
+    }
+
+    if (auto* header = parentHeaderView(widget)) {
+        return header;
+    }
+
+    if (auto* view = parentItemView(widget)) {
+        QWidget* viewport = view->viewport();
+        return viewport ? viewport : view;
+    }
+
+    return widget;
+}
+
+QPoint QmlLegacyLibraryItem::mapToGlobalScreen(const QPoint& rootPos) const {
+    if (!window()) {
+        return rootPos;
+    }
+    const QPointF scenePos = mapToScene(rootPos);
+    return window()->mapToGlobal(scenePos.toPoint());
+}
+
+void QmlLegacyLibraryItem::syncRootWidgetGlobalPosition() {
+    if (m_pRootWidget && window()) {
+        m_pRootWidget->move(mapToGlobalScreen(QPoint(0, 0)));
+    }
+}
+
+bool QmlLegacyLibraryItem::sendContextMenuToWidget(QMouseEvent* event, QWidget* target) {
+    if (!m_pRootWidget || !target) {
+        return false;
+    }
+
+    const QPoint rootPos = event->position().toPoint();
+    updateHoverTarget(target, rootPos, event->modifiers());
+
+    const QPoint targetPos = target->mapFrom(m_pRootWidget.get(), rootPos);
+    const QPoint globalPos = mapToGlobalScreen(rootPos);
+
+    QContextMenuEvent contextEvent(
+            QContextMenuEvent::Mouse,
+            targetPos,
+            globalPos,
+            event->modifiers());
+
+    if (auto* pTrackTableHeader = qobject_cast<WTrackTableViewHeader*>(target)) {
+        pTrackTableHeader->contextMenuEvent(&contextEvent);
+    } else {
+        QApplication::sendEvent(target, &contextEvent);
+    }
+    if (contextEvent.isAccepted()) {
+        event->accept();
+    }
+    syncCursorFromWidget(target, rootPos);
+    return contextEvent.isAccepted();
 }
 
 bool QmlLegacyLibraryItem::sendMouseToWidget(QMouseEvent* event, QWidget* target) {
@@ -624,6 +696,7 @@ void QmlLegacyLibraryItem::connectSortBypass() {
 }
 
 void QmlLegacyLibraryItem::mousePressEvent(QMouseEvent* event) {
+    syncRootWidgetGlobalPosition();
     const QPoint rootPos = event->position().toPoint();
     QWidget* target = eventTargetFor(widgetAtRootPos(rootPos));
     sendSyntheticMouseMoveToWidget(target, rootPos, event->globalPosition(), event->modifiers());
@@ -653,9 +726,20 @@ void QmlLegacyLibraryItem::mousePressEvent(QMouseEvent* event) {
         m_pGrabbedWidget.clear();
         QQuickPaintedItem::mousePressEvent(event);
     }
+
+    if (event->button() == Qt::RightButton &&
+            !isContextMenuOnMouseRelease()) {
+        QWidget* contextTarget = contextMenuTargetFor(widgetAtRootPos(rootPos));
+        if (sendContextMenuToWidget(event, contextTarget)) {
+            repaintEmbeddedViews();
+            m_pPressedWidget.clear();
+            m_pGrabbedWidget.clear();
+        }
+    }
 }
 
 void QmlLegacyLibraryItem::mouseReleaseEvent(QMouseEvent* event) {
+    syncRootWidgetGlobalPosition();
     const QPoint rootPos = event->position().toPoint();
     QWidget* target = m_pGrabbedWidget
             ? m_pGrabbedWidget.data()
@@ -664,7 +748,15 @@ void QmlLegacyLibraryItem::mouseReleaseEvent(QMouseEvent* event) {
     if (event->button() == Qt::LeftButton) {
         maybeApplyHeaderSortFallback(parentHeaderView(target), rootPos);
     }
-    if (accepted) {
+
+    bool contextMenuAccepted = false;
+    if (event->button() == Qt::RightButton &&
+            isContextMenuOnMouseRelease()) {
+        QWidget* contextTarget = contextMenuTargetFor(widgetAtRootPos(rootPos));
+        contextMenuAccepted = sendContextMenuToWidget(event, contextTarget);
+    }
+
+    if (accepted || contextMenuAccepted) {
         repaintEmbeddedViews();
     } else {
         QQuickPaintedItem::mouseReleaseEvent(event);
@@ -677,6 +769,7 @@ void QmlLegacyLibraryItem::mouseReleaseEvent(QMouseEvent* event) {
 }
 
 void QmlLegacyLibraryItem::mouseMoveEvent(QMouseEvent* event) {
+    syncRootWidgetGlobalPosition();
     QWidget* target = m_pGrabbedWidget
             ? m_pGrabbedWidget.data()
             : eventTargetFor(widgetAtRootPos(event->position().toPoint()));
@@ -688,6 +781,7 @@ void QmlLegacyLibraryItem::mouseMoveEvent(QMouseEvent* event) {
 }
 
 void QmlLegacyLibraryItem::mouseDoubleClickEvent(QMouseEvent* event) {
+    syncRootWidgetGlobalPosition();
     const QPoint rootPos = event->position().toPoint();
     QWidget* target = eventTargetFor(widgetAtRootPos(rootPos));
     sendSyntheticMouseMoveToWidget(target, rootPos, event->globalPosition(), event->modifiers());
@@ -702,6 +796,7 @@ void QmlLegacyLibraryItem::mouseDoubleClickEvent(QMouseEvent* event) {
 }
 
 void QmlLegacyLibraryItem::wheelEvent(QWheelEvent* event) {
+    syncRootWidgetGlobalPosition();
     if (sendWheelToWidget(event)) {
         update();
     } else {
@@ -710,6 +805,7 @@ void QmlLegacyLibraryItem::wheelEvent(QWheelEvent* event) {
 }
 
 void QmlLegacyLibraryItem::hoverEnterEvent(QHoverEvent* event) {
+    syncRootWidgetGlobalPosition();
     if (sendHoverToWidget(event)) {
         update();
     } else {
@@ -718,6 +814,7 @@ void QmlLegacyLibraryItem::hoverEnterEvent(QHoverEvent* event) {
 }
 
 void QmlLegacyLibraryItem::hoverMoveEvent(QHoverEvent* event) {
+    syncRootWidgetGlobalPosition();
     if (sendHoverToWidget(event)) {
         update();
     } else {
@@ -726,6 +823,7 @@ void QmlLegacyLibraryItem::hoverMoveEvent(QHoverEvent* event) {
 }
 
 void QmlLegacyLibraryItem::hoverLeaveEvent(QHoverEvent* event) {
+    syncRootWidgetGlobalPosition();
     if (m_pLastHoverWidget) {
         QEvent leaveEvent(QEvent::Leave);
         QApplication::sendEvent(m_pLastHoverWidget, &leaveEvent);

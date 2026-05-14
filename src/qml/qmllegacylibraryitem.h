@@ -54,6 +54,7 @@ class QmlLegacyLibraryItem : public QQuickPaintedItem {
     QAbstractItemView* parentItemView(QWidget* widget) const;
     QHeaderView* parentHeaderView(QWidget* widget) const;
     QWidget* eventTargetFor(QWidget* widget) const;
+    QWidget* contextMenuTargetFor(QWidget* widget) const;
     bool isHeaderResizeHandle(QHeaderView* header, const QPoint& rootPos) const;
     void maybeApplyHeaderSortFallback(QHeaderView* header, const QPoint& rootPos);
     bool sendMouseToWidget(QMouseEvent* event, QWidget* target);
@@ -64,6 +65,9 @@ class QmlLegacyLibraryItem : public QQuickPaintedItem {
             Qt::MouseButtons buttons = Qt::NoButton);
     bool sendWheelToWidget(QWheelEvent* event);
     bool sendHoverToWidget(QHoverEvent* event);
+    QPoint mapToGlobalScreen(const QPoint& rootPos) const;
+    void syncRootWidgetGlobalPosition();
+    bool sendContextMenuToWidget(QMouseEvent* event, QWidget* target);
     void updateHoverTarget(QWidget* target, const QPoint& rootPos, Qt::KeyboardModifiers modifiers);
     void syncCursorFromWidget(QWidget* target, const QPoint& rootPos);
     void repaintEmbeddedViews();
