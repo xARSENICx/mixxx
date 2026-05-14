@@ -74,6 +74,8 @@ class QmlLegacyLibraryItem : public QQuickPaintedItem {
     void repolishEmbeddedWidgets();
     void applyLegacyScrollbarStyles();
     void applyLegacyScrollbarStyle(QScrollBar* scrollBar);
+    void applyLegacyTableViewBridgeOptions();
+    void applyLegacyColorPickerBridgeOptions();
     void connectSortBypass();
 
     std::unique_ptr<QWidget> m_pRootWidget;

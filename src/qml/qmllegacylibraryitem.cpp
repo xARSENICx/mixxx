@@ -8,6 +8,7 @@
 #include <QFile>
 #include <QGuiApplication>
 #include <QHeaderView>
+#include <QIcon>
 #include <QLabel>
 #include <QMetaEnum>
 #include <QPainter>
@@ -31,9 +32,11 @@
 #include "qml/qmllibraryproxy.h"
 #include "skin/legacy/skincontext.h"
 #include "waveform/overviewtype.h"
+#include "widget/wcolorpicker.h"
 #include "widget/wlibrary.h"
 #include "widget/wlibrarysidebar.h"
 #include "widget/wsearchlineedit.h"
+#include "widget/wtracktableview.h"
 #include "widget/wtracktableviewheader.h"
 
 namespace mixxx {
@@ -102,12 +105,16 @@ QmlLegacyLibraryItem::QmlLegacyLibraryItem(QQuickItem* parent)
         connect(pLibrary, &Library::switchToView, this, [this]() {
             enableEmbeddedWidgetInputTracking();
             applyLegacyScrollbarStyles();
+            applyLegacyTableViewBridgeOptions();
+            applyLegacyColorPickerBridgeOptions();
             connectSortBypass();
             repaintEmbeddedViews();
         });
         connect(pLibrary, &Library::showTrackModel, this, [this]() {
             enableEmbeddedWidgetInputTracking();
             applyLegacyScrollbarStyles();
+            applyLegacyTableViewBridgeOptions();
+            applyLegacyColorPickerBridgeOptions();
             connectSortBypass();
             repaintEmbeddedViews();
         });
@@ -127,6 +134,8 @@ QmlLegacyLibraryItem::QmlLegacyLibraryItem(QQuickItem* parent)
     repolishEmbeddedWidgets();
     enableEmbeddedWidgetInputTracking();
     applyLegacyScrollbarStyles();
+    applyLegacyTableViewBridgeOptions();
+    applyLegacyColorPickerBridgeOptions();
     connectSortBypass();
 
     const QString previewDeckGroup = PlayerManager::groupForPreviewDeck(0);
@@ -194,9 +203,19 @@ void QmlLegacyLibraryItem::geometryChange(
 
 namespace {
 constexpr int kHeaderResizeCursorMargin = 4;
+constexpr const char* kColorDelegateBridgeProperty =
+        "mixxxColorDelegateUseRowBackgroundForColorCell";
+constexpr const char* kColorPickerButtonBridgeProperty =
+        "mixxxQmlLegacyColorPickerButtonBridge";
 
 QPointF widgetScenePos(QWidget* target, QWidget* root, const QPoint& rootPos) {
     return QPointF(target->mapFrom(root, rootPos));
+}
+
+void updateColorPickerButtonIcon(QPushButton* pButton) {
+    pButton->setIcon(QIcon(pButton->isChecked()
+                    ? QStringLiteral(":/images/ic_checkmark.svg")
+                    : QString()));
 }
 
 bool isContextMenuOnMouseRelease() {
@@ -695,6 +714,43 @@ void QmlLegacyLibraryItem::connectSortBypass() {
     }
 }
 
+void QmlLegacyLibraryItem::applyLegacyTableViewBridgeOptions() {
+    if (!m_pRootWidget) {
+        return;
+    }
+
+    const auto tableViews = m_pRootWidget->findChildren<WTrackTableView*>();
+    for (WTrackTableView* tableView : tableViews) {
+        tableView->setProperty(kColorDelegateBridgeProperty, true);
+    }
+}
+
+void QmlLegacyLibraryItem::applyLegacyColorPickerBridgeOptions() {
+    if (!m_pRootWidget) {
+        return;
+    }
+
+    const auto colorPickers = m_pRootWidget->findChildren<WColorPicker*>();
+    for (WColorPicker* colorPicker : colorPickers) {
+        const auto buttons = colorPicker->findChildren<QPushButton*>();
+        for (QPushButton* button : buttons) {
+            if (!button->property(kColorPickerButtonBridgeProperty).toBool()) {
+                button->setProperty(kColorPickerButtonBridgeProperty, true);
+                connect(button,
+                        &QPushButton::toggled,
+                        this,
+                        [button]() {
+                            updateColorPickerButtonIcon(button);
+                            QTimer::singleShot(0, button, [button]() {
+                                updateColorPickerButtonIcon(button);
+                            });
+                        });
+            }
+            updateColorPickerButtonIcon(button);
+        }
+    }
+}
+
 void QmlLegacyLibraryItem::mousePressEvent(QMouseEvent* event) {
     syncRootWidgetGlobalPosition();
     const QPoint rootPos = event->position().toPoint();
@@ -938,6 +994,11 @@ void QmlLegacyLibraryItem::applyLegacyStylesheet() {
             "\nWTrackTableViewHeader::down-arrow {"
             "\n  width: 14px;"
             "\n  height: 14px;"
+            "\n}"));
+    style.append(QStringLiteral(
+            "\n#LibraryBPMButton::item,"
+            "\n#LibraryPlayedCheckbox::item {"
+            "\n  background-color: transparent;"
             "\n}"));
 
     m_pRootWidget->setStyleSheet(style);
