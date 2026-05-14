@@ -219,9 +219,17 @@ void updateColorPickerButtonIcon(QPushButton* pButton) {
 }
 
 bool isContextMenuOnMouseRelease() {
+#if QT_VERSION >= QT_VERSION_CHECK(6, 8, 0)
     const QStyleHints* styleHints = QGuiApplication::styleHints();
     return styleHints &&
             styleHints->contextMenuTrigger() == Qt::ContextMenuTrigger::Release;
+#else
+#if defined(Q_OS_WIN) || defined(Q_OS_MACOS)
+    return true; // Windows and macOS trigger on release
+#else
+    return false; // X11/Linux typically triggers on press
+#endif
+#endif
 }
 } // namespace
 
