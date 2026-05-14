@@ -1,5 +1,6 @@
 #pragma once
 
+#include <QPixmap>
 #include <QPointer>
 #include <QQmlEngine>
 #include <QQuickPaintedItem>
@@ -44,6 +45,7 @@ class QmlLegacyLibraryItem : public QQuickPaintedItem {
 
   private:
     void updateWidgetSize();
+    void renderOffscreen();
     void applyLegacyStylesheet();
     void initializeOverviewTypeControl();
     void applyLegacyLibrarySkinConfiguration();
@@ -99,6 +101,7 @@ class QmlLegacyLibraryItem : public QQuickPaintedItem {
     // exist, so we create and own the CO here so that OverviewDelegate can
     // read the correct overview type (RGB by default).
     std::unique_ptr<ControlPushButton> m_pOverviewTypeControl;
+    QPixmap m_offscreenPixmap;
 };
 
 } // namespace qml

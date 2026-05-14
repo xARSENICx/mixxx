@@ -149,17 +149,33 @@ QmlLegacyLibraryItem::QmlLegacyLibraryItem(QQuickItem* parent)
     //    TODO(GSoC): Replace with an event-filter on the root widget that
     //    intercepts QEvent::UpdateRequest so we only repaint when needed.
     auto* pRepaintTimer = new QTimer(this);
-    connect(pRepaintTimer, &QTimer::timeout, this, [this]() { update(); });
+    connect(pRepaintTimer, &QTimer::timeout, this, [this]() {
+        renderOffscreen();
+        update();
+    });
     pRepaintTimer->start(33); // ~30 fps
 }
 
-void QmlLegacyLibraryItem::paint(QPainter* pPainter) {
+void QmlLegacyLibraryItem::renderOffscreen() {
     if (!m_pRootWidget) {
         return;
     }
-
     updateWidgetSize();
-    m_pRootWidget->render(pPainter);
+    const QSize size(qMax(1, qRound(width())),
+            qMax(1, qRound(height())));
+    if (m_offscreenPixmap.size() != size) {
+        m_offscreenPixmap = QPixmap(size);
+    }
+    m_offscreenPixmap.fill(Qt::transparent);
+    QPainter painter(&m_offscreenPixmap);
+    m_pRootWidget->render(&painter);
+}
+
+void QmlLegacyLibraryItem::paint(QPainter* pPainter) {
+    if (m_offscreenPixmap.isNull()) {
+        return;
+    }
+    pPainter->drawPixmap(0, 0, m_offscreenPixmap);
 }
 
 void QmlLegacyLibraryItem::geometryChange(
