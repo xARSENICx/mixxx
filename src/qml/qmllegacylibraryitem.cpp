@@ -754,11 +754,20 @@ void QmlLegacyLibraryItem::applyLegacyLibrarySkinConfiguration() {
             "<TrackTableBackgroundColorOpacity>0.175</TrackTableBackgroundColorOpacity>"
             "<SignalColor>#e7c413</SignalColor>"
             "</Library>");
+#if QT_VERSION >= QT_VERSION_CHECK(6, 5, 0)
     const QDomDocument::ParseResult parseResult = document.setContent(libraryXml);
     if (!parseResult) {
         qWarning() << "QmlLegacyLibraryItem: failed to parse library skin setup"
                    << parseResult.errorMessage << parseResult.errorLine
                    << parseResult.errorColumn;
+#else
+    QString errorMessage;
+    int errorLine;
+    int errorColumn;
+    if (!document.setContent(libraryXml, &errorMessage, &errorLine, &errorColumn)) {
+        qWarning() << "QmlLegacyLibraryItem: failed to parse library skin setup"
+                   << errorMessage << errorLine << errorColumn;
+#endif
         return;
     }
 
