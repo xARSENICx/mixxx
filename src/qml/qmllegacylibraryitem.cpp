@@ -57,6 +57,26 @@ QmlLegacyLibraryItem::QmlLegacyLibraryItem(QQuickItem* parent)
     m_pRootWidget->setAutoFillBackground(true);
     m_pRootWidget->setAttribute(Qt::WA_DontShowOnScreen);
     m_pRootWidget->setObjectName(QStringLiteral("LibraryContainer"));
+
+    // Force a dark palette so the OS Light/Dark mode doesn't bleed into native
+    // Qt elements that fall back to QPalette (e.g. table gridlines, scrollbar
+    // backgrounds). LateNight QML is exclusively a dark theme and the offscreen
+    // root widget has no parent, so it would otherwise inherit the global
+    // QApplication palette which adapts to the current OS appearance.
+    {
+        QPalette darkPalette;
+        darkPalette.setColor(QPalette::Window, QColor(40, 40, 40));
+        darkPalette.setColor(QPalette::WindowText, Qt::white);
+        darkPalette.setColor(QPalette::Base, QColor(25, 25, 25));
+        darkPalette.setColor(QPalette::AlternateBase, QColor(40, 40, 40));
+        darkPalette.setColor(QPalette::Text, Qt::white);
+        darkPalette.setColor(QPalette::Button, QColor(40, 40, 40));
+        darkPalette.setColor(QPalette::ButtonText, Qt::white);
+        darkPalette.setColor(QPalette::Mid, QColor(50, 50, 50));
+        darkPalette.setColor(QPalette::Dark, QColor(20, 20, 20));
+        m_pRootWidget->setPalette(darkPalette);
+    }
+
     // 1. Create splitter layout
     auto* pSplitter = new QSplitter(m_pRootWidget.get());
 
