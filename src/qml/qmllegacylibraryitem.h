@@ -41,6 +41,9 @@ class QmlLegacyLibraryItem : public QQuickPaintedItem {
     void hoverMoveEvent(QHoverEvent* event) override;
     void hoverLeaveEvent(QHoverEvent* event) override;
 
+    void keyPressEvent(QKeyEvent* event) override;
+    void keyReleaseEvent(QKeyEvent* event) override;
+
     void geometryChange(const QRectF& newGeometry, const QRectF& oldGeometry) override;
 
   private:
@@ -80,6 +83,7 @@ class QmlLegacyLibraryItem : public QQuickPaintedItem {
     void requestRender();
     void installEmbeddedWidgetEventFilters();
     void connectEmbeddedWidgetUpdateSignals();
+    void updateEmbeddedFocus(QWidget* target, Qt::FocusReason reason);
 
     bool eventFilter(QObject* watched, QEvent* event) override;
 
@@ -103,6 +107,11 @@ class QmlLegacyLibraryItem : public QQuickPaintedItem {
     int m_pressedHeaderSortSection = -1;
     Qt::SortOrder m_pressedHeaderSortOrder = Qt::AscendingOrder;
     Qt::MouseButtons m_pressedButtons = Qt::NoButton;
+
+    // Track which embedded widget has "keyboard focus". Since the offscreen
+    // widget tree can never gain real focus (WA_DontShowOnScreen), we
+    // synthesize FocusIn/FocusOut events manually.
+    QPointer<QWidget> m_pFocusedWidget;
 
     std::unique_ptr<ControlProxy> m_pPreviewDeckPlay;
     std::unique_ptr<ControlProxy> m_pPreviewDeckTrackLoaded;

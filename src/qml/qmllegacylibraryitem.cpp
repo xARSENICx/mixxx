@@ -2,10 +2,12 @@
 
 #include <QAbstractItemView>
 #include <QApplication>
+#include <QComboBox>
 #include <QContextMenuEvent>
 #include <QDir>
 #include <QDomDocument>
 #include <QFile>
+#include <QFocusEvent>
 #include <QGuiApplication>
 #include <QHeaderView>
 #include <QIcon>
@@ -54,6 +56,8 @@ QmlLegacyLibraryItem::QmlLegacyLibraryItem(QQuickItem* parent)
     // Configure for input handling
     setAcceptedMouseButtons(Qt::AllButtons);
     setAcceptHoverEvents(true);
+    setFlag(QQuickItem::ItemAcceptsInputMethod, true);
+    setActiveFocusOnTab(true);
 
     m_pRootWidget->setAutoFillBackground(true);
     m_pRootWidget->setAttribute(Qt::WA_DontShowOnScreen);
@@ -120,6 +124,14 @@ QmlLegacyLibraryItem::QmlLegacyLibraryItem(QQuickItem* parent)
         pLibrary->bindSearchboxWidget(m_pSearchLineEdit);
         pLibrary->bindSidebarWidget(m_pSidebar);
         pLibrary->bindLibraryWidget(m_pLibraryWidget, QmlLibraryProxy::getKeyboard());
+
+        // The legacy skin parser makes this connection in parseLibrary().
+        // Without it the search signal never reaches WLibrary and the
+        // track table is never filtered.
+        connect(pLibrary,
+                &Library::search,
+                m_pLibraryWidget,
+                &WLibrary::search);
 
         // 8. Trigger repaints on visual changes and refresh input tracking for
         //    views that are created or swapped after the initial bind.
@@ -811,6 +823,11 @@ void QmlLegacyLibraryItem::mousePressEvent(QMouseEvent* event) {
         QQuickPaintedItem::mousePressEvent(event);
     }
 
+    // Grab QML keyboard focus so keyPressEvent/keyReleaseEvent fire on
+    // this item, and synthesize FocusIn on the clicked embedded widget.
+    forceActiveFocus(Qt::MouseFocusReason);
+    updateEmbeddedFocus(target, Qt::MouseFocusReason);
+
     if (event->button() == Qt::RightButton &&
             !isContextMenuOnMouseRelease()) {
         QWidget* contextTarget = contextMenuTargetFor(widgetAtRootPos(rootPos));
@@ -916,6 +933,58 @@ void QmlLegacyLibraryItem::hoverLeaveEvent(QHoverEvent* event) {
     unsetCursor();
     requestRender();
     QQuickPaintedItem::hoverLeaveEvent(event);
+}
+
+void QmlLegacyLibraryItem::keyPressEvent(QKeyEvent* event) {
+    if (m_pFocusedWidget) {
+        QApplication::sendEvent(m_pFocusedWidget, event);
+        requestRender();
+    } else {
+        QQuickPaintedItem::keyPressEvent(event);
+    }
+}
+
+void QmlLegacyLibraryItem::keyReleaseEvent(QKeyEvent* event) {
+    if (m_pFocusedWidget) {
+        QApplication::sendEvent(m_pFocusedWidget, event);
+        requestRender();
+    } else {
+        QQuickPaintedItem::keyReleaseEvent(event);
+    }
+}
+
+void QmlLegacyLibraryItem::updateEmbeddedFocus(
+        QWidget* target, Qt::FocusReason reason) {
+    // For QComboBox (WSearchLineEdit), the internal QLineEdit is the
+    // deepest click target. Walk up to the QComboBox so that
+    // QComboBox::focusInEvent fires — it forwards focus to the line
+    // edit internally and sets up the completer and clear button.
+    QWidget* focusTarget = target;
+    while (focusTarget) {
+        if (qobject_cast<QComboBox*>(focusTarget)) {
+            break;
+        }
+        if (focusTarget->focusPolicy() != Qt::NoFocus) {
+            break;
+        }
+        focusTarget = focusTarget->parentWidget();
+    }
+
+    if (focusTarget == m_pFocusedWidget) {
+        return;
+    }
+
+    if (m_pFocusedWidget) {
+        QFocusEvent focusOut(QEvent::FocusOut, reason);
+        QApplication::sendEvent(m_pFocusedWidget, &focusOut);
+    }
+
+    m_pFocusedWidget = focusTarget;
+
+    if (m_pFocusedWidget) {
+        QFocusEvent focusIn(QEvent::FocusIn, reason);
+        QApplication::sendEvent(m_pFocusedWidget, &focusIn);
+    }
 }
 
 void QmlLegacyLibraryItem::updateWidgetSize() {
@@ -1028,6 +1097,16 @@ void QmlLegacyLibraryItem::applyLegacyStylesheet() {
             "\n#LibraryPlayedCheckbox::item {"
             "\n  background-color: transparent;"
             "\n}"));
+
+    // Prepend default.qss so that SearchClearButton, LibraryPreviewButton,
+    // BPM lock and other icon rules are available.
+    const QString defaultQssPath =
+            skinsRoot + QStringLiteral("default.qss");
+    QFile defaultQss(defaultQssPath);
+    if (defaultQss.open(QIODevice::ReadOnly | QIODevice::Text)) {
+        style.prepend(QString::fromUtf8(defaultQss.readAll()) +
+                QStringLiteral("\n"));
+    }
 
     m_pRootWidget->setStyleSheet(style);
     qDebug() << "QmlLegacyLibraryItem: applied LateNight legacy stylesheet";
