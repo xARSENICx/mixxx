@@ -114,6 +114,7 @@ class QmlLegacyLibraryItem : public QQuickPaintedItem {
     std::unique_ptr<ControlPushButton> m_pOverviewTypeControl;
     QPixmap m_offscreenPixmap;
     bool m_renderPending = false;
+    bool m_isRendering = false;
 };
 
 } // namespace qml

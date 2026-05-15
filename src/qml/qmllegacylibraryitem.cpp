@@ -14,6 +14,7 @@
 #include <QPainter>
 #include <QPushButton>
 #include <QQuickWindow>
+#include <QScopedValueRollback>
 #include <QScrollBar>
 #include <QSplitter>
 #include <QStyle>
@@ -201,6 +202,7 @@ void QmlLegacyLibraryItem::renderOffscreen() {
     }
     m_offscreenPixmap.fill(Qt::transparent);
     QPainter painter(&m_offscreenPixmap);
+    const QScopedValueRollback<bool> renderingRollback(m_isRendering, true);
     m_pRootWidget->render(&painter);
 }
 
@@ -1059,7 +1061,7 @@ void QmlLegacyLibraryItem::initializeOverviewTypeControl() {
 }
 
 void QmlLegacyLibraryItem::requestRender() {
-    if (m_renderPending) {
+    if (m_renderPending || m_isRendering) {
         return;
     }
     m_renderPending = true;
@@ -1071,9 +1073,12 @@ void QmlLegacyLibraryItem::requestRender() {
 }
 
 bool QmlLegacyLibraryItem::eventFilter(QObject* watched, QEvent* event) {
+    if (m_isRendering) {
+        return QQuickPaintedItem::eventFilter(watched, event);
+    }
+
     switch (event->type()) {
     case QEvent::UpdateRequest:
-    case QEvent::Paint:
     case QEvent::Resize:
     case QEvent::Move:
     case QEvent::LayoutRequest:
