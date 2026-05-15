@@ -77,6 +77,11 @@ class QmlLegacyLibraryItem : public QQuickPaintedItem {
     void applyLegacyTableViewBridgeOptions();
     void applyLegacyColorPickerBridgeOptions();
     void connectSortBypass();
+    void requestRender();
+    void installEmbeddedWidgetEventFilters();
+    void connectEmbeddedWidgetUpdateSignals();
+
+    bool eventFilter(QObject* watched, QEvent* event) override;
 
     std::unique_ptr<QWidget> m_pRootWidget;
 
@@ -108,6 +113,7 @@ class QmlLegacyLibraryItem : public QQuickPaintedItem {
     // read the correct overview type (RGB by default).
     std::unique_ptr<ControlPushButton> m_pOverviewTypeControl;
     QPixmap m_offscreenPixmap;
+    bool m_renderPending = false;
 };
 
 } // namespace qml

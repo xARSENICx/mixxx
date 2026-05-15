@@ -128,6 +128,8 @@ QmlLegacyLibraryItem::QmlLegacyLibraryItem(QQuickItem* parent)
             applyLegacyTableViewBridgeOptions();
             applyLegacyColorPickerBridgeOptions();
             connectSortBypass();
+            installEmbeddedWidgetEventFilters();
+            connectEmbeddedWidgetUpdateSignals();
             repaintEmbeddedViews();
         });
         connect(pLibrary, &Library::showTrackModel, this, [this]() {
@@ -136,6 +138,8 @@ QmlLegacyLibraryItem::QmlLegacyLibraryItem(QQuickItem* parent)
             applyLegacyTableViewBridgeOptions();
             applyLegacyColorPickerBridgeOptions();
             connectSortBypass();
+            installEmbeddedWidgetEventFilters();
+            connectEmbeddedWidgetUpdateSignals();
             repaintEmbeddedViews();
         });
 
@@ -157,6 +161,8 @@ QmlLegacyLibraryItem::QmlLegacyLibraryItem(QQuickItem* parent)
     applyLegacyTableViewBridgeOptions();
     applyLegacyColorPickerBridgeOptions();
     connectSortBypass();
+    installEmbeddedWidgetEventFilters();
+    connectEmbeddedWidgetUpdateSignals();
 
     const QString previewDeckGroup = PlayerManager::groupForPreviewDeck(0);
     m_pPreviewDeckPlay = std::make_unique<ControlProxy>(
@@ -170,24 +176,16 @@ QmlLegacyLibraryItem::QmlLegacyLibraryItem(QQuickItem* parent)
             this,
             ControlFlag::NoAssertIfMissing);
     m_pPreviewDeckPlay->connectValueChanged(this, [this](double) {
-        repaintEmbeddedViews();
+        requestRender();
     });
     m_pPreviewDeckTrackLoaded->connectValueChanged(this, [this](double) {
-        repaintEmbeddedViews();
+        requestRender();
     });
 
-    // 9. Periodic repaint timer (~30 fps) to flush async widget repaints
-    //    (hover state changes, scrollbar animations, delegate updates) to the
-    //    QML scene.  The QWidget tree repaints into its backing store silently
-    //    because WA_DontShowOnScreen suppresses normal screen updates.
-    //    TODO(GSoC): Replace with an event-filter on the root widget that
-    //    intercepts QEvent::UpdateRequest so we only repaint when needed.
-    auto* pRepaintTimer = new QTimer(this);
-    connect(pRepaintTimer, &QTimer::timeout, this, [this]() {
-        renderOffscreen();
-        update();
-    });
-    pRepaintTimer->start(33); // ~30 fps
+    // Kick off an initial render once the widget tree is complete and the
+    // event loop is running. All subsequent repaints are event-driven via
+    // installEmbeddedWidgetEventFilters() and connectEmbeddedWidgetUpdateSignals().
+    QTimer::singleShot(0, this, [this]() { requestRender(); });
 }
 
 void QmlLegacyLibraryItem::renderOffscreen() {
@@ -218,7 +216,7 @@ void QmlLegacyLibraryItem::geometryChange(
         const QRectF& oldGeometry) {
     QQuickPaintedItem::geometryChange(newGeometry, oldGeometry);
     updateWidgetSize();
-    update();
+    requestRender();
 }
 
 namespace {
@@ -600,7 +598,7 @@ void QmlLegacyLibraryItem::repaintEmbeddedViews() {
         }
         view->update();
     }
-    update();
+    requestRender();
 }
 
 void QmlLegacyLibraryItem::applyLegacyScrollbarStyle(QScrollBar* scrollBar) {
@@ -858,7 +856,7 @@ void QmlLegacyLibraryItem::mouseMoveEvent(QMouseEvent* event) {
             ? m_pGrabbedWidget.data()
             : eventTargetFor(widgetAtRootPos(event->position().toPoint()));
     if (sendMouseToWidget(event, target)) {
-        update();
+        requestRender();
     } else {
         QQuickPaintedItem::mouseMoveEvent(event);
     }
@@ -882,7 +880,7 @@ void QmlLegacyLibraryItem::mouseDoubleClickEvent(QMouseEvent* event) {
 void QmlLegacyLibraryItem::wheelEvent(QWheelEvent* event) {
     syncRootWidgetGlobalPosition();
     if (sendWheelToWidget(event)) {
-        update();
+        requestRender();
     } else {
         QQuickPaintedItem::wheelEvent(event);
     }
@@ -891,7 +889,7 @@ void QmlLegacyLibraryItem::wheelEvent(QWheelEvent* event) {
 void QmlLegacyLibraryItem::hoverEnterEvent(QHoverEvent* event) {
     syncRootWidgetGlobalPosition();
     if (sendHoverToWidget(event)) {
-        update();
+        requestRender();
     } else {
         QQuickPaintedItem::hoverEnterEvent(event);
     }
@@ -900,7 +898,7 @@ void QmlLegacyLibraryItem::hoverEnterEvent(QHoverEvent* event) {
 void QmlLegacyLibraryItem::hoverMoveEvent(QHoverEvent* event) {
     syncRootWidgetGlobalPosition();
     if (sendHoverToWidget(event)) {
-        update();
+        requestRender();
     } else {
         QQuickPaintedItem::hoverMoveEvent(event);
     }
@@ -914,7 +912,7 @@ void QmlLegacyLibraryItem::hoverLeaveEvent(QHoverEvent* event) {
         m_pLastHoverWidget.clear();
     }
     unsetCursor();
-    update();
+    requestRender();
     QQuickPaintedItem::hoverLeaveEvent(event);
 }
 
@@ -1058,6 +1056,156 @@ void QmlLegacyLibraryItem::initializeOverviewTypeControl() {
     m_pOverviewTypeControl->forceSet(static_cast<double>(overviewType));
     qDebug() << "QmlLegacyLibraryItem: initialized WaveformOverviewType CO to"
              << static_cast<int>(overviewType);
+}
+
+void QmlLegacyLibraryItem::requestRender() {
+    if (m_renderPending) {
+        return;
+    }
+    m_renderPending = true;
+    QTimer::singleShot(0, this, [this]() {
+        m_renderPending = false;
+        renderOffscreen();
+        update();
+    });
+}
+
+bool QmlLegacyLibraryItem::eventFilter(QObject* watched, QEvent* event) {
+    switch (event->type()) {
+    case QEvent::UpdateRequest:
+    case QEvent::Paint:
+    case QEvent::Resize:
+    case QEvent::Move:
+    case QEvent::LayoutRequest:
+    case QEvent::PolishRequest:
+    case QEvent::StyleChange:
+    case QEvent::PaletteChange:
+    case QEvent::FontChange:
+    case QEvent::Show:
+    case QEvent::Hide:
+    case QEvent::EnabledChange:
+    case QEvent::DynamicPropertyChange:
+        requestRender();
+        break;
+    case QEvent::ChildAdded:
+        // Defer so the child is fully constructed before we install filters.
+        QTimer::singleShot(0, this, [this]() {
+            installEmbeddedWidgetEventFilters();
+            connectEmbeddedWidgetUpdateSignals();
+        });
+        break;
+    case QEvent::ChildRemoved:
+        requestRender();
+        break;
+    default:
+        break;
+    }
+    return QQuickPaintedItem::eventFilter(watched, event);
+}
+
+constexpr const char* kEventFilterInstalledProperty =
+        "mixxxQmlLegacyEventFilterInstalled";
+
+void QmlLegacyLibraryItem::installEmbeddedWidgetEventFilters() {
+    if (!m_pRootWidget) {
+        return;
+    }
+
+    QList<QWidget*> widgets = m_pRootWidget->findChildren<QWidget*>();
+    widgets.prepend(m_pRootWidget.get());
+    for (QWidget* widget : widgets) {
+        if (widget->property(kEventFilterInstalledProperty).toBool()) {
+            continue;
+        }
+        widget->setProperty(kEventFilterInstalledProperty, true);
+        widget->installEventFilter(this);
+
+        // Also install on item view viewports explicitly.
+        if (auto* view = qobject_cast<QAbstractItemView*>(widget)) {
+            if (QWidget* vp = view->viewport()) {
+                if (!vp->property(kEventFilterInstalledProperty).toBool()) {
+                    vp->setProperty(kEventFilterInstalledProperty, true);
+                    vp->installEventFilter(this);
+                }
+            }
+        }
+    }
+}
+
+void QmlLegacyLibraryItem::connectEmbeddedWidgetUpdateSignals() {
+    if (!m_pRootWidget) {
+        return;
+    }
+
+    const auto views = m_pRootWidget->findChildren<QAbstractItemView*>();
+    for (QAbstractItemView* view : views) {
+        QAbstractItemModel* model = view->model();
+        if (model) {
+            connect(model,
+                    &QAbstractItemModel::dataChanged,
+                    this,
+                    &QmlLegacyLibraryItem::requestRender,
+                    Qt::UniqueConnection);
+            connect(model,
+                    &QAbstractItemModel::rowsInserted,
+                    this,
+                    &QmlLegacyLibraryItem::requestRender,
+                    Qt::UniqueConnection);
+            connect(model,
+                    &QAbstractItemModel::rowsRemoved,
+                    this,
+                    &QmlLegacyLibraryItem::requestRender,
+                    Qt::UniqueConnection);
+            connect(model,
+                    &QAbstractItemModel::modelReset,
+                    this,
+                    &QmlLegacyLibraryItem::requestRender,
+                    Qt::UniqueConnection);
+            connect(model,
+                    &QAbstractItemModel::layoutChanged,
+                    this,
+                    &QmlLegacyLibraryItem::requestRender,
+                    Qt::UniqueConnection);
+            connect(model,
+                    &QAbstractItemModel::headerDataChanged,
+                    this,
+                    &QmlLegacyLibraryItem::requestRender,
+                    Qt::UniqueConnection);
+        }
+
+        QItemSelectionModel* selectionModel = view->selectionModel();
+        if (selectionModel) {
+            connect(selectionModel,
+                    &QItemSelectionModel::selectionChanged,
+                    this,
+                    &QmlLegacyLibraryItem::requestRender,
+                    Qt::UniqueConnection);
+            connect(selectionModel,
+                    &QItemSelectionModel::currentChanged,
+                    this,
+                    &QmlLegacyLibraryItem::requestRender,
+                    Qt::UniqueConnection);
+        }
+    }
+
+    const auto scrollBars = m_pRootWidget->findChildren<QScrollBar*>();
+    for (QScrollBar* scrollBar : scrollBars) {
+        connect(scrollBar,
+                &QScrollBar::valueChanged,
+                this,
+                &QmlLegacyLibraryItem::requestRender,
+                Qt::UniqueConnection);
+        connect(scrollBar,
+                &QScrollBar::rangeChanged,
+                this,
+                &QmlLegacyLibraryItem::requestRender,
+                Qt::UniqueConnection);
+        connect(scrollBar,
+                &QScrollBar::sliderMoved,
+                this,
+                &QmlLegacyLibraryItem::requestRender,
+                Qt::UniqueConnection);
+    }
 }
 
 } // namespace qml
