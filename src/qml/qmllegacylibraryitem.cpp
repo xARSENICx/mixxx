@@ -194,11 +194,6 @@ QmlLegacyLibraryItem::QmlLegacyLibraryItem(QQuickItem* parent)
     m_pPreviewDeckTrackLoaded->connectValueChanged(this, [this](double) {
         requestRender();
     });
-
-    // Kick off an initial render once the widget tree is complete and the
-    // event loop is running. All subsequent repaints are event-driven via
-    // installEmbeddedWidgetEventFilters() and connectEmbeddedWidgetUpdateSignals().
-    QTimer::singleShot(0, this, [this]() { requestRender(); });
 }
 
 void QmlLegacyLibraryItem::renderOffscreen() {
@@ -231,6 +226,17 @@ void QmlLegacyLibraryItem::geometryChange(
     QQuickPaintedItem::geometryChange(newGeometry, oldGeometry);
     updateWidgetSize();
     requestRender();
+}
+
+void QmlLegacyLibraryItem::componentComplete() {
+    QQuickPaintedItem::componentComplete();
+    m_componentComplete = true;
+
+    // Flush any dirty state that accumulated during construction
+    // (geometry changes, model signals, etc.).
+    if (m_isDirty) {
+        requestRender();
+    }
 }
 
 namespace {
@@ -349,8 +355,15 @@ QPoint QmlLegacyLibraryItem::mapToGlobalScreen(const QPoint& rootPos) const {
 }
 
 void QmlLegacyLibraryItem::syncRootWidgetGlobalPosition() {
-    if (m_pRootWidget && window()) {
-        m_pRootWidget->move(mapToGlobalScreen(QPoint(0, 0)));
+    if (!m_pRootWidget || !window()) {
+        return;
+    }
+    const QPoint globalPos = mapToGlobalScreen(QPoint(0, 0));
+    // Only call move() if the position changed — move() posts QEvent::Move
+    // to the root widget, and since we have an event filter on it, calling
+    // this unconditionally during renderOffscreen() creates a feedback loop.
+    if (m_pRootWidget->pos() != globalPos) {
+        m_pRootWidget->move(globalPos);
     }
 }
 
@@ -1140,15 +1153,21 @@ void QmlLegacyLibraryItem::initializeOverviewTypeControl() {
 }
 
 void QmlLegacyLibraryItem::requestRender() {
-    if (m_renderPending || m_isRendering) {
+    m_isDirty = true;
+    if (!m_componentComplete || m_isRendering) {
         return;
     }
-    m_renderPending = true;
-    QTimer::singleShot(0, this, [this]() {
-        m_renderPending = false;
-        renderOffscreen();
-        update();
-    });
+    // Schedules updatePolish() once before the next scene graph frame.
+    // All redundant calls within the same frame are coalesced by Qt for free.
+    polish();
+}
+void QmlLegacyLibraryItem::updatePolish() {
+    if (!m_isDirty) {
+        return;
+    }
+    m_isDirty = false;
+    renderOffscreen();
+    update();
 }
 
 bool QmlLegacyLibraryItem::eventFilter(QObject* watched, QEvent* event) {
@@ -1157,11 +1176,7 @@ bool QmlLegacyLibraryItem::eventFilter(QObject* watched, QEvent* event) {
     }
 
     switch (event->type()) {
-    case QEvent::UpdateRequest:
     case QEvent::Resize:
-    case QEvent::Move:
-    case QEvent::LayoutRequest:
-    case QEvent::PolishRequest:
     case QEvent::StyleChange:
     case QEvent::PaletteChange:
     case QEvent::FontChange:
@@ -1169,16 +1184,6 @@ bool QmlLegacyLibraryItem::eventFilter(QObject* watched, QEvent* event) {
     case QEvent::Hide:
     case QEvent::EnabledChange:
     case QEvent::DynamicPropertyChange:
-        requestRender();
-        break;
-    case QEvent::ChildAdded:
-        // Defer so the child is fully constructed before we install filters.
-        QTimer::singleShot(0, this, [this]() {
-            installEmbeddedWidgetEventFilters();
-            connectEmbeddedWidgetUpdateSignals();
-        });
-        break;
-    case QEvent::ChildRemoved:
         requestRender();
         break;
     default:

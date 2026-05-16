@@ -45,6 +45,8 @@ class QmlLegacyLibraryItem : public QQuickPaintedItem {
     void keyReleaseEvent(QKeyEvent* event) override;
 
     void geometryChange(const QRectF& newGeometry, const QRectF& oldGeometry) override;
+    void componentComplete() override;
+    void updatePolish() override;
 
   private:
     void updateWidgetSize();
@@ -122,8 +124,9 @@ class QmlLegacyLibraryItem : public QQuickPaintedItem {
     // read the correct overview type (RGB by default).
     std::unique_ptr<ControlPushButton> m_pOverviewTypeControl;
     QPixmap m_offscreenPixmap;
-    bool m_renderPending = false;
     bool m_isRendering = false;
+    bool m_componentComplete = false; // gates rendering until QML component is constructed
+    bool m_isDirty = false;           // true only when content has actually changed
 };
 
 } // namespace qml
