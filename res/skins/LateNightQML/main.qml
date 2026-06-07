@@ -1,5 +1,7 @@
 import "../../qml" as Skin
 import "LateNightTheme"
+import "Deck" as LateNightDeck
+import "Waveforms" as LateNightWaveforms
 import Mixxx 1.0 as Mixxx
 import QtQuick
 import QtQuick.Controls
@@ -11,6 +13,8 @@ ApplicationWindow {
     property alias editDeck: editDeckButton.checked
     property var focusedDeck: null
     property alias maximizeLibrary: maximizeLibraryButton.checked
+    readonly property int fullDeckHeight: 206
+    readonly property int minimizedDeckHeight: 80
     readonly property int numDecks: 4
     readonly property int numSamplers: 16
     readonly property bool show4decks: show4DecksButton.checked && show4DecksButton.visible
@@ -38,6 +42,63 @@ ApplicationWindow {
 
         onInitializedChanged: {
             value = root.numSamplers;
+        }
+    }
+
+    Mixxx.ControlProxy {
+        id: initDefaultsProxy
+        group: "[LateNightQML]"
+        key: "initialized_defaults"
+
+        onInitializedChanged: {
+            checkAndInitDefaults();
+        }
+        onValueChanged: {
+            checkAndInitDefaults();
+        }
+    }
+
+    Mixxx.ControlProxy {
+        id: initSpinniesProxy
+        group: "[Skin]"
+        key: "show_spinnies"
+
+        onInitializedChanged: {
+            checkAndInitDefaults();
+        }
+    }
+
+    Mixxx.ControlProxy {
+        id: initCoverartProxy
+        group: "[Skin]"
+        key: "show_coverart"
+
+        onInitializedChanged: {
+            checkAndInitDefaults();
+        }
+    }
+
+    Mixxx.ControlProxy {
+        id: initRateControlsProxy
+        group: "[Skin]"
+        key: "show_rate_controls"
+
+        onInitializedChanged: {
+            checkAndInitDefaults();
+        }
+    }
+
+    function checkAndInitDefaults() {
+        if (initDefaultsProxy.initialized &&
+                initSpinniesProxy.initialized &&
+                initCoverartProxy.initialized &&
+                initRateControlsProxy.initialized) {
+            if (initDefaultsProxy.value === 0.0) {
+                initSpinniesProxy.value = 1.0;
+                initCoverartProxy.value = 1.0;
+                initRateControlsProxy.value = 1.0;
+                initDefaultsProxy.value = 1.0;
+            }
         }
     }
     Column {
@@ -207,116 +268,16 @@ ApplicationWindow {
                 }
             }
 
-            Item {
+            LateNightWaveforms.WaveformStack {
                 id: waveforms
 
                 SplitView.fillHeight: !library.active
                 SplitView.preferredHeight: library.active ? 120 : undefined
                 visible: !root.maximizeLibrary
+                show4decks: root.show4decks
 
                 Skin.FadeBehavior on visible {
                     fadeTarget: waveforms
-                }
-
-                Loader {
-                    id: deck3waveform
-
-                    readonly property string group: "[Channel3]"
-
-                    active: root.show4decks
-                    anchors.top: parent.top
-                    height: parent.height / 4
-                    width: root.width
-
-                    sourceComponent: Component {
-                        Skin.WaveformDisplay {
-                            group: deck3waveform.group
-
-                            Skin.FadeBehavior on visible {
-                                fadeTarget: deck3waveform
-                            }
-                        }
-                    }
-                }
-                Skin.WaveformDisplay {
-                    id: deck1waveform
-
-                    anchors.top: root.show4decks ? deck3waveform.bottom : parent.top
-                    group: "[Channel1]"
-                    height: parent.height / (root.show4decks ? 4 : 2)
-                    width: root.width
-                }
-                Skin.WaveformDisplay {
-                    id: deck2waveform
-
-                    anchors.bottom: root.show4decks ? deck4waveform.top : parent.bottom
-                    group: "[Channel2]"
-                    height: parent.height / (root.show4decks ? 4 : 2)
-                    width: root.width
-                }
-                Loader {
-                    id: deck4waveform
-
-                    readonly property string group: "[Channel4]"
-
-                    active: root.show4decks
-                    anchors.bottom: parent.bottom
-                    height: parent.height / 4
-                    width: root.width
-
-                    sourceComponent: Component {
-                        Skin.WaveformDisplay {
-                            group: deck4waveform.group
-
-                            Skin.FadeBehavior on visible {
-                                fadeTarget: deck4waveform
-                            }
-                        }
-                    }
-                }
-                Rectangle {
-                    width: 125
-
-                    gradient: Gradient {
-                        orientation: Gradient.Horizontal
-
-                        GradientStop {
-                            color: LateNightTheme.darkGray
-                            position: 0
-                        }
-                        GradientStop {
-                            color: 'transparent'
-                            position: 1
-                        }
-                    }
-
-                    anchors {
-                        bottom: parent.bottom
-                        left: parent.left
-                        top: parent.top
-                    }
-                }
-                Rectangle {
-                    width: 125
-
-                    gradient: Gradient {
-                        orientation: Gradient.Horizontal
-
-                        GradientStop {
-                            color: 'transparent'
-                            position: 0
-                        }
-                        GradientStop {
-                            color: LateNightTheme.darkGray
-                            position: 1
-                        }
-                    }
-
-                    anchors {
-                        bottom: parent.bottom
-                        right: parent.right
-                        top: parent.top
-                    }
                 }
             }
             Item {
@@ -324,12 +285,12 @@ ApplicationWindow {
                 SplitView.maximumHeight: library.active ? undefined : mixer.height
                 SplitView.minimumHeight: mixer.height
 
-                Skin.Deck {
+                LateNightDeck.Deck {
                     id: deck1
 
                     editMode: root.editDeck
                     group: "[Channel1]"
-                    height: root.maximizeLibrary ? 80 : root.show4decks ? mixer.height / 2 : mixer.height
+                    height: root.maximizeLibrary ? root.minimizedDeckHeight : root.fullDeckHeight
                     minimized: root.maximizeLibrary
 
                     Behavior on height {
@@ -447,12 +408,12 @@ ApplicationWindow {
                         fadeTarget: mixer
                     }
                 }
-                Skin.Deck {
+                LateNightDeck.Deck {
                     id: deck2
 
                     editMode: root.editDeck
                     group: "[Channel2]"
-                    height: root.maximizeLibrary ? 80 : root.show4decks ? mixer.height / 2 : mixer.height
+                    height: root.maximizeLibrary ? root.minimizedDeckHeight : root.fullDeckHeight
                     minimized: root.maximizeLibrary
 
                     Behavior on height {
@@ -491,7 +452,7 @@ ApplicationWindow {
                     readonly property string group: "[Channel3]"
 
                     active: root.show4decks
-                    height: active ? (root.maximizeLibrary ? 80 : mixer.height / 2) : 0
+                    height: active ? (root.maximizeLibrary ? root.minimizedDeckHeight : root.fullDeckHeight) : 0
 
                     Behavior on height {
                         SpringAnimation {
@@ -503,7 +464,7 @@ ApplicationWindow {
                         }
                     }
                     sourceComponent: Component {
-                        Skin.Deck {
+                        LateNightDeck.Deck {
                             anchors.bottom: parent.bottom
                             anchors.left: parent.left
                             editMode: root.editDeck
@@ -534,7 +495,7 @@ ApplicationWindow {
                     readonly property string group: "[Channel4]"
 
                     active: root.show4decks
-                    height: active ? (root.maximizeLibrary ? 80 : mixer.height / 2) : 0
+                    height: active ? (root.maximizeLibrary ? root.minimizedDeckHeight : root.fullDeckHeight) : 0
 
                     Behavior on height {
                         SpringAnimation {
@@ -546,7 +507,7 @@ ApplicationWindow {
                         }
                     }
                     sourceComponent: Component {
-                        Skin.Deck {
+                        LateNightDeck.Deck {
                             anchors.bottom: parent.bottom
                             anchors.right: parent.right
                             editMode: root.editDeck
