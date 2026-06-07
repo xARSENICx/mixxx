@@ -17,6 +17,22 @@ Item {
 
     implicitHeight: 55
 
+    function formatDuration(value) {
+        if (!Number.isFinite(value) || value <= 0) {
+            return "";
+        }
+        const totalSeconds = Math.floor(value);
+        const hours = Math.floor(totalSeconds / 3600);
+        const minutes = Math.floor((totalSeconds % 3600) / 60);
+        const seconds = totalSeconds % 60;
+        if (hours > 0) {
+            return hours.toString() + ":" +
+                    minutes.toString().padStart(2, "0") + ":" +
+                    seconds.toString().padStart(2, "0");
+        }
+        return minutes.toString() + ":" + seconds.toString().padStart(2, "0");
+    }
+
     Mixxx.ControlProxy {
         id: durationProxy
         group: root.group
@@ -115,7 +131,7 @@ Item {
             Text {
                 id: durationText
                 Layout.preferredWidth: 180
-                text: root.isLoaded ? (currentTrack?.durationTextSeconds || "") : ""
+                text: root.isLoaded ? root.formatDuration(durationProxy.value) : ""
                 font.family: "Open Sans"
                 font.pixelSize: 14
                 font.weight: Font.Normal

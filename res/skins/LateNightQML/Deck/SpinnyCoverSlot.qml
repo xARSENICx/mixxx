@@ -58,16 +58,6 @@ Item {
             }
         }
 
-        // Ghost Indicator (shows cues / starting point, optional placeholder)
-        Image {
-            id: spinnyGhost
-            anchors.fill: parent
-            source: LateNightTheme.assetDeckSpinnyGhostIndicator
-            fillMode: Image.PreserveAspectFit
-            visible: root.isLoaded
-            opacity: 0.3
-        }
-
         // Vinyl Grooves Overlay (Mask)
         Image {
             id: spinnyMask
