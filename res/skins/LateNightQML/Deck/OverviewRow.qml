@@ -1,12 +1,16 @@
 import QtQuick
 import QtQuick.Layouts
+import Mixxx 1.0 as Mixxx
+import "../LateNightTheme"
 import "../../../qml/Mixxx/Controls" as MixxxControls
 
 Item {
     id: root
 
     required property string group
-
+    readonly property bool useSecondaryDeckColors: root.group === "[Channel3]" || root.group === "[Channel4]"
+    readonly property color overviewBackgroundColor: useSecondaryDeckColors ? LateNightTheme.secondaryOverviewBackgroundColor : LateNightTheme.primaryOverviewBackgroundColor
+    readonly property color waveformSignalColor: useSecondaryDeckColors ? LateNightTheme.secondaryWaveformSignalColor : LateNightTheme.primaryWaveformSignalColor
 
 
     RowLayout {
@@ -16,7 +20,7 @@ Item {
         Rectangle {
             Layout.fillWidth: true
             Layout.fillHeight: true
-            color: "#151515"
+            color: root.overviewBackgroundColor
             border.color: "#0a0a0a"
             border.width: 1
 
@@ -33,7 +37,11 @@ Item {
 
                 anchors.fill: parent
                 anchors.margins: 1
+                colorHigh: root.waveformSignalColor
+                colorLow: root.waveformSignalColor
+                colorMid: root.waveformSignalColor
                 group: root.group
+                renderer: Mixxx.WaveformOverview.Renderer.Filtered
             }
         }
 
