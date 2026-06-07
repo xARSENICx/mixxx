@@ -17,10 +17,8 @@ QtObject {
     readonly property color textColorMuted: "#696969"
     readonly property color primaryDeckTextColor: ColorScheme.primaryDeckTextColor
     readonly property color primaryOverviewBackgroundColor: ColorScheme.primaryOverviewBackgroundColor
-    readonly property color primaryWaveformSignalColor: ColorScheme.primaryWaveformSignalColor
     readonly property color secondaryDeckTextColor: ColorScheme.secondaryDeckTextColor
     readonly property color secondaryOverviewBackgroundColor: ColorScheme.secondaryOverviewBackgroundColor
-    readonly property color secondaryWaveformSignalColor: ColorScheme.secondaryWaveformSignalColor
     readonly property color toolbarActiveColor: white
     readonly property color toolbarBackgroundColor: "#242424"
     readonly property int toolbarButtonHeight: 26

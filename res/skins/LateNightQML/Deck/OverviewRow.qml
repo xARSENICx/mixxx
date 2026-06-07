@@ -10,9 +10,6 @@ Item {
     required property string group
     readonly property bool useSecondaryDeckColors: root.group === "[Channel3]" || root.group === "[Channel4]"
     readonly property color overviewBackgroundColor: useSecondaryDeckColors ? LateNightTheme.secondaryOverviewBackgroundColor : LateNightTheme.primaryOverviewBackgroundColor
-    readonly property color waveformSignalColor: useSecondaryDeckColors ? LateNightTheme.secondaryWaveformSignalColor : LateNightTheme.primaryWaveformSignalColor
-
-
     RowLayout {
         anchors.fill: parent
         spacing: 0
@@ -37,10 +34,10 @@ Item {
 
                 anchors.fill: parent
                 anchors.margins: 1
-                colorHigh: root.waveformSignalColor
-                colorLow: root.waveformSignalColor
-                colorMid: root.waveformSignalColor
                 group: root.group
+                colorLow: "#ff0000"
+                colorMid: "#00ff00"
+                colorHigh: "#0000ff"
                 renderer: Mixxx.WaveformOverview.Renderer.Filtered
             }
         }
