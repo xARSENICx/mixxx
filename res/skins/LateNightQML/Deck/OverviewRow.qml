@@ -38,7 +38,7 @@ Item {
                 colorLow: "#ff0000"
                 colorMid: "#00ff00"
                 colorHigh: "#0000ff"
-                renderer: Mixxx.WaveformOverview.Renderer.Filtered
+                renderer: Mixxx.WaveformOverview.Renderer.RGB
             }
         }
 
