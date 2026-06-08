@@ -37,11 +37,10 @@ Item {
             rowSpacing: 0
             columnSpacing: 0
 
-            Repeater {
                 model: [
                     LateNightTheme.assetDeckSlipButton,
                     LateNightTheme.assetDeckQuantizeButton,
-                    LateNightTheme.assetDeckKeyMatchButton,
+                    LateNightTheme.assetDeckBeatCurposButton,
                     LateNightTheme.assetDeckEjectButton,
                     LateNightTheme.assetDeckRepeatButton,
                     LateNightTheme.assetDeckKeylockButton

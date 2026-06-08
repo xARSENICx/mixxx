@@ -32,6 +32,7 @@ QtObject {
     readonly property url assetDeckBeatjumpLeftButton: legacyAsset("buttons", "btn__beatjump_left.svg")
     readonly property url assetDeckBeatjumpRightButton: legacyAsset("buttons", "btn__beatjump_right.svg")
     readonly property url assetDeckCoverDefault: legacyAsset("style", "cover_default.svg")
+    readonly property url assetDeckBeatCurposButton: legacyAsset("buttons", "btn__beat_curpos.svg")
     readonly property url assetDeckCueButton: legacyAsset("buttons", "btn__cue_deck.svg")
     readonly property url assetDeckEjectButton: legacyAsset("buttons", "btn__eject.svg")
     readonly property url assetDeckIntroEndButton: legacyAsset("buttons", "btn__intro_end.svg")
