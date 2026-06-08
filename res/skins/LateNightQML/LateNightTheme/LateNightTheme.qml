@@ -17,8 +17,10 @@ QtObject {
     readonly property color textColorMuted: "#696969"
     readonly property color primaryDeckTextColor: ColorScheme.primaryDeckTextColor
     readonly property color primaryOverviewBackgroundColor: ColorScheme.primaryOverviewBackgroundColor
+    readonly property color primaryWaveformSignalColor: ColorScheme.primaryWaveformSignalColor
     readonly property color secondaryDeckTextColor: ColorScheme.secondaryDeckTextColor
     readonly property color secondaryOverviewBackgroundColor: ColorScheme.secondaryOverviewBackgroundColor
+    readonly property color secondaryWaveformSignalColor: ColorScheme.secondaryWaveformSignalColor
     readonly property color toolbarActiveColor: white
     readonly property color toolbarBackgroundColor: "#242424"
     readonly property int toolbarButtonHeight: 26
@@ -66,6 +68,10 @@ QtObject {
     readonly property url assetDeckSyncButton: legacyAsset("buttons", "btn__sync_deck.svg")
     readonly property url assetDeckVolumeSliderBackground: legacyAsset("sliders", "slider_volume_deck.svg")
     readonly property url assetDeckVolumeSliderHandle: legacyAsset("sliders", "knob_volume_deck.svg")
+    readonly property url assetDeckVinylControl0: legacyAsset("style", "vinyl_control_0.svg")
+    readonly property url assetDeckVinylControl1: legacyAsset("style", "vinyl_control_1.svg")
+    readonly property url assetDeckVinylControl2: legacyAsset("style", "vinyl_control_2.svg")
+    readonly property url assetDeckVinylControl3: legacyAsset("style", "vinyl_control_3.svg")
     readonly property url assetFxKnobBackground: legacyAsset("knobs", "knob_bg_fx.svg")
     readonly property url assetMainKnobBackground: legacyAsset("knobs", "knob_bg_main.svg")
     readonly property url assetRegularKnobBackground: legacyAsset("knobs", "knob_bg_regular.svg")

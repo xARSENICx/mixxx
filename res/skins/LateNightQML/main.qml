@@ -79,9 +79,109 @@ ApplicationWindow {
     }
 
     Mixxx.ControlProxy {
+        id: initSelectBigSpinnyProxy
+        group: "[Skin]"
+        key: "select_big_spinny_or_cover"
+
+        onInitializedChanged: {
+            checkAndInitDefaults();
+        }
+    }
+
+    Mixxx.ControlProxy {
+        id: initHotcuesProxy
+        group: "[Skin]"
+        key: "show_hotcues"
+
+        onInitializedChanged: {
+            checkAndInitDefaults();
+        }
+    }
+
+    Mixxx.ControlProxy {
+        id: init8HotcuesProxy
+        group: "[Skin]"
+        key: "show_8_hotcues"
+
+        onInitializedChanged: {
+            checkAndInitDefaults();
+        }
+    }
+
+    Mixxx.ControlProxy {
+        id: initIntroOutroCuesProxy
+        group: "[Skin]"
+        key: "show_intro_outro_cues"
+
+        onInitializedChanged: {
+            checkAndInitDefaults();
+        }
+    }
+
+    Mixxx.ControlProxy {
+        id: initLoopControlsProxy
+        group: "[Skin]"
+        key: "show_loop_controls"
+
+        onInitializedChanged: {
+            checkAndInitDefaults();
+        }
+    }
+
+    Mixxx.ControlProxy {
+        id: initBeatjumpControlsProxy
+        group: "[Skin]"
+        key: "show_beatjump_controls"
+
+        onInitializedChanged: {
+            checkAndInitDefaults();
+        }
+    }
+
+    Mixxx.ControlProxy {
+        id: initKeyControlsProxy
+        group: "[Skin]"
+        key: "show_key_controls"
+
+        onInitializedChanged: {
+            checkAndInitDefaults();
+        }
+    }
+
+    Mixxx.ControlProxy {
+        id: initVinylControlsProxy
+        group: "[Skin]"
+        key: "show_vinylcontrol"
+
+        onInitializedChanged: {
+            checkAndInitDefaults();
+        }
+    }
+
+    Mixxx.ControlProxy {
         id: initRateControlsProxy
         group: "[Skin]"
         key: "show_rate_controls"
+
+        onInitializedChanged: {
+            checkAndInitDefaults();
+        }
+    }
+
+    Mixxx.ControlProxy {
+        id: initRateControlButtonsProxy
+        group: "[Skin]"
+        key: "show_rate_control_buttons"
+
+        onInitializedChanged: {
+            checkAndInitDefaults();
+        }
+    }
+
+    Mixxx.ControlProxy {
+        id: init4EffectUnitsProxy
+        group: "[Skin]"
+        key: "show_4effectunits"
 
         onInitializedChanged: {
             checkAndInitDefaults();
@@ -92,12 +192,32 @@ ApplicationWindow {
         if (initDefaultsProxy.initialized &&
                 initSpinniesProxy.initialized &&
                 initCoverartProxy.initialized &&
-                initRateControlsProxy.initialized) {
-            if (initDefaultsProxy.value === 0.0) {
+                initSelectBigSpinnyProxy.initialized &&
+                initHotcuesProxy.initialized &&
+                init8HotcuesProxy.initialized &&
+                initIntroOutroCuesProxy.initialized &&
+                initLoopControlsProxy.initialized &&
+                initBeatjumpControlsProxy.initialized &&
+                initKeyControlsProxy.initialized &&
+                initVinylControlsProxy.initialized &&
+                initRateControlsProxy.initialized &&
+                initRateControlButtonsProxy.initialized &&
+                init4EffectUnitsProxy.initialized) {
+            if (initDefaultsProxy.value < 2.0) {
                 initSpinniesProxy.value = 1.0;
                 initCoverartProxy.value = 1.0;
+                initSelectBigSpinnyProxy.value = 0.0;
+                initHotcuesProxy.value = 1.0;
+                init8HotcuesProxy.value = 1.0;
+                initIntroOutroCuesProxy.value = 1.0;
+                initLoopControlsProxy.value = 1.0;
+                initBeatjumpControlsProxy.value = 1.0;
+                initKeyControlsProxy.value = 1.0;
+                initVinylControlsProxy.value = 0.0;
                 initRateControlsProxy.value = 1.0;
-                initDefaultsProxy.value = 1.0;
+                initRateControlButtonsProxy.value = 1.0;
+                init4EffectUnitsProxy.value = 0.0;
+                initDefaultsProxy.value = 2.0;
             }
         }
     }

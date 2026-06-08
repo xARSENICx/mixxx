@@ -7,6 +7,7 @@ Item {
     id: root
 
     required property string group
+    property bool showRateControlButtons: true
 
     readonly property var deckPlayer: Mixxx.PlayerManager.getPlayer(root.group)
     readonly property bool isLoaded: deckPlayer?.isLoaded ?? false
@@ -129,19 +130,28 @@ Item {
                 Layout.minimumHeight: 118
 
                 Text {
-                    anchors.top: parent.top
-                    anchors.right: parent.right
-                    anchors.rightMargin: 1
-                    text: "8"
+                    x: 1
+                    y: sliderTrack.y - 3
+                    text: "-"
                     font.family: "Open Sans"
-                    font.pixelSize: 10
+                    font.pixelSize: 12
                     color: root.rateTextColor
                 }
 
                 Text {
-                    anchors.left: parent.left
-                    anchors.bottom: parent.bottom
-                    anchors.leftMargin: 1
+                    width: 8
+                    x: parent.width - width - 1
+                    y: sliderTrack.y - 4
+                    text: "8"
+                    font.family: "Open Sans"
+                    font.pixelSize: 12
+                    color: root.rateTextColor
+                    horizontalAlignment: Text.AlignRight
+                }
+
+                Text {
+                    x: 1
+                    y: sliderTrack.y + sliderTrack.height - height + 2
                     text: "+"
                     font.family: "Open Sans"
                     font.pixelSize: 12
@@ -149,13 +159,14 @@ Item {
                 }
 
                 Text {
-                    anchors.right: parent.right
-                    anchors.bottom: parent.bottom
-                    anchors.rightMargin: 1
+                    width: 8
+                    x: parent.width - width - 1
+                    y: sliderTrack.y + sliderTrack.height - height + 2
                     text: "8"
                     font.family: "Open Sans"
-                    font.pixelSize: 10
+                    font.pixelSize: 12
                     color: root.rateTextColor
+                    horizontalAlignment: Text.AlignRight
                 }
 
                 Image {
@@ -183,6 +194,7 @@ Item {
                 Layout.preferredWidth: 26
                 Layout.alignment: Qt.AlignVCenter
                 spacing: 2
+                visible: root.showRateControlButtons
 
                 Repeater {
                     model: [

@@ -7,6 +7,11 @@ Item {
     id: root
 
     required property string group
+    property bool show8Hotcues: true
+    property bool showBeatjumpControls: true
+    property bool showHotcues: true
+    property bool showIntroOutroCues: true
+    property bool showLoopControls: true
 
     height: 52
 
@@ -71,15 +76,16 @@ Item {
         }
 
         GridLayout {
-            columns: 4
+            columns: root.show8Hotcues ? 4 : 2
             rows: 2
             rowSpacing: 0
             columnSpacing: 0
-            Layout.preferredWidth: 104
+            Layout.preferredWidth: root.show8Hotcues ? 104 : 52
             Layout.preferredHeight: 52
+            visible: root.showHotcues
 
             Repeater {
-                model: 8
+                model: root.show8Hotcues ? 8 : 4
 
                 delegate: LegacyIconButton {
                     Layout.preferredWidth: 26
@@ -103,6 +109,7 @@ Item {
             columnSpacing: 0
             Layout.preferredWidth: 52
             Layout.preferredHeight: 52
+            visible: root.showIntroOutroCues
 
             Repeater {
                 model: [
@@ -132,6 +139,7 @@ Item {
             columnSpacing: 0
             Layout.preferredWidth: 104
             Layout.preferredHeight: 52
+            visible: root.showLoopControls
 
             LegacyIconButton {
                 Layout.preferredWidth: 26
@@ -175,6 +183,7 @@ Item {
             columnSpacing: 0
             Layout.preferredWidth: 60
             Layout.preferredHeight: 52
+            visible: root.showBeatjumpControls
 
             BeatSpinBoxPlaceholder {
                 Layout.columnSpan: 2

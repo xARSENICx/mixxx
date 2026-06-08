@@ -13,8 +13,18 @@ Rectangle {
     property bool editMode: false
     readonly property var deckPlayer: Mixxx.PlayerManager.getPlayer(root.group)
     readonly property var currentTrack: deckPlayer?.currentTrack
-    readonly property bool showBigSpinnyOrCover: showBigSpinnyProxy.value > 0
-    readonly property bool showSmallSpinnyOrCover: !showBigSpinnyOrCover && !root.minimized
+    property bool honorLegacyVisibilityControls: false
+    readonly property bool showBeatjumpControls: !honorLegacyVisibilityControls || showBeatjumpControlsProxy.value > 0
+    readonly property bool showBigSpinnyOrCover: selectBigSpinnyProxy.value > 0
+    readonly property bool showHotcues: !honorLegacyVisibilityControls || showHotcuesProxy.value > 0
+    readonly property bool show8Hotcues: !honorLegacyVisibilityControls || show8HotcuesProxy.value > 0
+    readonly property bool showIntroOutroCues: !honorLegacyVisibilityControls || showIntroOutroCuesProxy.value > 0
+    readonly property bool showKeyControls: !honorLegacyVisibilityControls || showKeyControlsProxy.value > 0
+    readonly property bool showLoopControls: !honorLegacyVisibilityControls || showLoopControlsProxy.value > 0
+    readonly property bool showRateControlButtons: !honorLegacyVisibilityControls || showRateControlButtonsProxy.value > 0
+    readonly property bool showRateControls: !honorLegacyVisibilityControls || showRateControlsProxy.value > 0
+    readonly property bool showSmallSpinnyOrCover: selectBigSpinnyProxy.value <= 0 && !root.minimized
+    readonly property bool showVinylControls: honorLegacyVisibilityControls && showVinylControlsProxy.value > 0
     readonly property string keyText: currentTrack?.keyText || "--"
 
     color: "#161616"
@@ -23,9 +33,69 @@ Rectangle {
     radius: 4
 
     Mixxx.ControlProxy {
-        id: showBigSpinnyProxy
+        id: selectBigSpinnyProxy
         group: "[Skin]"
-        key: "show_big_spinny_or_cover"
+        key: "select_big_spinny_or_cover"
+    }
+
+    Mixxx.ControlProxy {
+        id: showKeyControlsProxy
+        group: "[Skin]"
+        key: "show_key_controls"
+    }
+
+    Mixxx.ControlProxy {
+        id: showVinylControlsProxy
+        group: "[Skin]"
+        key: "show_vinylcontrol"
+    }
+
+    Mixxx.ControlProxy {
+        id: show4EffectUnitsProxy
+        group: "[Skin]"
+        key: "show_4effectunits"
+    }
+
+    Mixxx.ControlProxy {
+        id: showHotcuesProxy
+        group: "[Skin]"
+        key: "show_hotcues"
+    }
+
+    Mixxx.ControlProxy {
+        id: show8HotcuesProxy
+        group: "[Skin]"
+        key: "show_8_hotcues"
+    }
+
+    Mixxx.ControlProxy {
+        id: showIntroOutroCuesProxy
+        group: "[Skin]"
+        key: "show_intro_outro_cues"
+    }
+
+    Mixxx.ControlProxy {
+        id: showLoopControlsProxy
+        group: "[Skin]"
+        key: "show_loop_controls"
+    }
+
+    Mixxx.ControlProxy {
+        id: showBeatjumpControlsProxy
+        group: "[Skin]"
+        key: "show_beatjump_controls"
+    }
+
+    Mixxx.ControlProxy {
+        id: showRateControlsProxy
+        group: "[Skin]"
+        key: "show_rate_controls"
+    }
+
+    Mixxx.ControlProxy {
+        id: showRateControlButtonsProxy
+        group: "[Skin]"
+        key: "show_rate_control_buttons"
     }
 
     RowLayout {
@@ -57,10 +127,10 @@ Rectangle {
                     spacing: 0
 
                     Repeater {
-                        model: ["FX1", "FX2"]
+                        model: show4EffectUnitsProxy.value > 0 ? ["FX1", "2", "3", "4"] : ["FX1", "FX2"]
 
                         delegate: Rectangle {
-                            width: 26
+                            width: show4EffectUnitsProxy.value > 0 && index > 0 ? 20 : 26
                             height: 20
                             color: "#222222"
                             radius: 1
@@ -92,6 +162,19 @@ Rectangle {
                     }
                 }
 
+                VinylControlsPlaceholder {
+                    Layout.preferredWidth: 158
+                    Layout.preferredHeight: 20
+                    Layout.maximumHeight: 20
+                    visible: root.showVinylControls
+                }
+
+                Item {
+                    Layout.preferredWidth: root.showVinylControls ? 2 : 0
+                    Layout.fillHeight: true
+                    visible: root.showVinylControls
+                }
+
                 KeyControlsPlaceholder {
                     Layout.preferredWidth: 111
                     Layout.maximumWidth: 111
@@ -99,6 +182,7 @@ Rectangle {
                     Layout.maximumHeight: 20
                     group: root.group
                     keyText: root.keyText
+                    visible: root.showKeyControls
                 }
             }
 
@@ -178,6 +262,11 @@ Rectangle {
                 Layout.preferredHeight: 52
                 Layout.maximumHeight: 52
                 group: root.group
+                showHotcues: root.showHotcues
+                show8Hotcues: root.show8Hotcues
+                showIntroOutroCues: root.showIntroOutroCues
+                showLoopControls: root.showLoopControls
+                showBeatjumpControls: root.showBeatjumpControls
                 visible: !root.minimized
             }
         }
@@ -192,7 +281,8 @@ Rectangle {
             Layout.maximumHeight: 202
             Layout.alignment: Qt.AlignTop
             group: root.group
-            visible: !root.minimized
+            showRateControlButtons: root.showRateControlButtons
+            visible: !root.minimized && root.showRateControls
         }
     }
 
