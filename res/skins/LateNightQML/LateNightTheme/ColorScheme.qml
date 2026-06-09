@@ -19,7 +19,10 @@ QtObject {
             primaryWaveformSignalColor: "#d9b28c",
             secondaryWaveformSignalColor: "#7bc6c3",
             topRegionButtonType: "embedded",
-            subRegionButtonType: "embedded"
+            subRegionButtonType: "embedded",
+            activePlayCueColor: "#b24c12",
+            starsColor12: "#988f86",
+            starsColor34: "#559b99"
         },
         "Classic": {
             name: "classic",
@@ -33,7 +36,10 @@ QtObject {
             primaryWaveformSignalColor: "#e7c413",
             secondaryWaveformSignalColor: "#09b2ae",
             topRegionButtonType: "embedded",
-            subRegionButtonType: "elevated"
+            subRegionButtonType: "elevated",
+            activePlayCueColor: "#db0000",
+            starsColor12: "#f0bb2b",
+            starsColor34: "#0bd9d1"
         }
     })
 
@@ -51,4 +57,7 @@ QtObject {
     readonly property color secondaryDeckTextColor: activeScheme.secondaryDeckTextColor
     readonly property string subRegionButtonType: activeScheme.subRegionButtonType
     readonly property string topRegionButtonType: activeScheme.topRegionButtonType
+    readonly property color activePlayCueColor: activeScheme.activePlayCueColor
+    readonly property color starsColor12: activeScheme.starsColor12
+    readonly property color starsColor34: activeScheme.starsColor34
 }

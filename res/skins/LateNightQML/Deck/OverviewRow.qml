@@ -70,6 +70,7 @@ Item {
 
             DeckSettingsPlaceholder {
                 anchors.fill: parent
+                group: root.group
             }
         }
     }

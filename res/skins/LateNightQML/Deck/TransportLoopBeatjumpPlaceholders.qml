@@ -57,7 +57,9 @@ Item {
             LegacyIconButton {
                 Layout.preferredWidth: 26
                 Layout.preferredHeight: 26
+                backgroundSource: LateNightTheme.legacyButton("btn__.svg")
                 iconSource: LateNightTheme.assetDeckReverseButton
+                stretchIcon: true
                 contentOpacity: 0.82
             }
 

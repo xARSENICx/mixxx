@@ -129,13 +129,32 @@ Rectangle {
                     Repeater {
                         model: show4EffectUnitsProxy.value > 0 ? ["FX1", "2", "3", "4"] : ["FX1", "FX2"]
 
-                        delegate: Rectangle {
+                        delegate: Item {
                             width: show4EffectUnitsProxy.value > 0 && index > 0 ? 20 : 26
                             height: 20
-                            color: "#222222"
-                            radius: 1
-                            border.color: "#383838"
-                            border.width: 1
+
+                            Rectangle {
+                                anchors.fill: parent
+                                color: "#1e1e20"
+                                radius: 2
+                            }
+
+                            BorderImage {
+                                anchors.fill: parent
+                                source: {
+                                    if (index === 0) {
+                                        return LateNightTheme.legacyButton("btn_embedded_library.svg");
+                                    } else {
+                                        return LateNightTheme.legacyButton("btn_embedded_grid.svg");
+                                    }
+                                }
+                                border {
+                                    top: 2
+                                    bottom: 2
+                                    left: index === 0 ? 2 : 1
+                                    right: 2
+                                }
+                            }
 
                             Text {
                                 anchors.centerIn: parent
@@ -143,7 +162,7 @@ Rectangle {
                                 font.family: "Open Sans"
                                 font.pixelSize: 10
                                 font.bold: true
-                                color: "#888888"
+                                color: "#666666"
                             }
                         }
                     }
