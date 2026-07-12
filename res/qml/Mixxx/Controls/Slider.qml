@@ -1,5 +1,6 @@
 import QtQuick 2.12
 import QtQuick.Shapes 1.12
+import QtQml 2.12
 
 Item {
     id: root
@@ -13,7 +14,7 @@ Item {
     readonly property real availableHeight: Math.max(0, height - topPadding - bottomPadding)
     readonly property real availableWidth: Math.max(0, width - leftPadding - rightPadding)
     property alias background: backgroundItem.data
-    property alias bar: barPath
+    property alias bar: barSettings
     property real bottomPadding: 0
     readonly property real displayValue: dragHandler.active ? dragHandler.value : value
     property real from: 0
@@ -91,6 +92,15 @@ Item {
         }
     }
 
+    QtObject {
+        id: barSettings
+
+        property color color: "transparent"
+        property bool enabled: false
+        property real margin: 0
+        property real start: 0
+        property real width: 2
+    }
     Item {
         id: backgroundItem
 
@@ -115,17 +125,11 @@ Item {
         ShapePath {
             id: barPath
 
-            property color color: "transparent"
-            property bool enabled: false
-            property real margin: 0
-            property real start: 0
-            property real width: 2
-
             fillColor: "transparent"
             startX: barShape.width * (root.horizontal ? (1 - root.bar.start) : 0.5)
             startY: barShape.height * (root.vertical ? (1 - root.bar.start) : 0.5)
-            strokeColor: color
-            strokeWidth: width
+            strokeColor: root.bar.color
+            strokeWidth: root.bar.width
 
             PathLine {
                 x: root.horizontal ? (barShape.width * root.position) : barPath.startX
