@@ -1,7 +1,7 @@
 import QtQuick
 import QtQuick.Layouts
 import Mixxx 1.0 as Mixxx
-import "../../../qml" as Skin
+import "../Controls" as LateNightControls
 import "../LateNightTheme"
 
 Item {
@@ -277,7 +277,7 @@ Item {
                     horizontalAlignment: Text.AlignRight
                 }
 
-                Skin.ControlFader {
+                LateNightControls.Fader {
                     id: rateSlider
                     x: 5
                     y: 2
@@ -287,24 +287,12 @@ Item {
                     bar.color: "#888888"
                     bar.margin: 7
                     bar.start: 0.5
-                    showDefaultHandle: false
                     group: root.group
+                    handleHeight: 17
+                    handleSource: LateNightTheme.assetDeckRateSliderHandle
+                    handleWidth: 40
                     key: "rate"
-
-                    background: Image {
-                        anchors.fill: parent
-                        fillMode: Image.PreserveAspectFit
-                        source: LateNightTheme.assetDeckRateSliderBackground
-                    }
-
-                    handle: Image {
-                        width: 40
-                        height: 17
-                        x: (rateSlider.width - width) / 2
-                        y: rateSlider.visualPosition * (rateSlider.height - height)
-                        fillMode: Image.PreserveAspectFit
-                        source: LateNightTheme.assetDeckRateSliderHandle
-                    }
+                    backgroundSource: LateNightTheme.assetDeckRateSliderBackground
                 }
 
                 Image {

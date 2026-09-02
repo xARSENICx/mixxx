@@ -2,6 +2,7 @@
 
 #include <QAction>
 #include <QCoreApplication>
+#include <QDir>
 #include <QEvent>
 #include <QKeySequence>
 #include <QMenu>
@@ -14,6 +15,7 @@
 #include <QQuickWindow>
 #include <QScreen>
 #include <QTextDocument>
+#include <array>
 #include <utility>
 
 #include "control/controlproxy.h"
@@ -46,6 +48,51 @@ const QString kMainQmlFileName = QStringLiteral("qml/main.qml");
 const ConfigKey kOverviewTypeCfgKey(
         QStringLiteral("[Waveform]"),
         QStringLiteral("WaveformOverviewType"));
+
+struct ConfigKeyMigration {
+    ConfigKey oldKey;
+    ConfigKey newKey;
+};
+
+const std::array<ConfigKeyMigration, 7> kLateNightQmlSettingMigrations{{
+        {ConfigKey(QStringLiteral("[LateNight]"), QStringLiteral("deck_size_without_mixer")),
+                ConfigKey(QStringLiteral("[Skin]"),
+                        QStringLiteral("latenight_deck_size_without_mixer"))},
+        {ConfigKey(QStringLiteral("[LateNight]"), QStringLiteral("max_lib_show_decks")),
+                ConfigKey(QStringLiteral("[Skin]"),
+                        QStringLiteral("latenight_max_lib_show_decks"))},
+        {ConfigKey(QStringLiteral("[LateNight]"), QStringLiteral("show_sync_button_compact")),
+                ConfigKey(QStringLiteral("[Skin]"),
+                        QStringLiteral("latenight_show_sync_button_compact"))},
+        {ConfigKey(QStringLiteral("[LateNight]"), QStringLiteral("sampler_rows")),
+                ConfigKey(QStringLiteral("[Skin]"), QStringLiteral("latenight_sampler_rows"))},
+        {ConfigKey(QStringLiteral("[LateNight]"), QStringLiteral("expand_samplers_1-4")),
+                ConfigKey(QStringLiteral("[Skin]"),
+                        QStringLiteral("latenight_expand_samplers_1_4"))},
+        {ConfigKey(QStringLiteral("[LateNight]"), QStringLiteral("expand_samplers_1-8")),
+                ConfigKey(QStringLiteral("[Skin]"),
+                        QStringLiteral("latenight_expand_samplers_1_8"))},
+        {ConfigKey(QStringLiteral("[LateNight]"), QStringLiteral("expand_samplers_9-16")),
+                ConfigKey(QStringLiteral("[Skin]"),
+                        QStringLiteral("latenight_expand_samplers_9_16"))},
+}};
+
+void migrateLateNightQmlSettings(
+        const QString& mainQmlFilePath,
+        const UserSettingsPointer& pConfig) {
+    const QString normalizedPath = QDir::cleanPath(
+            QDir::fromNativeSeparators(mainQmlFilePath));
+    if (!normalizedPath.endsWith(QStringLiteral("/skins/LateNightQML/main.qml"))) {
+        return;
+    }
+
+    for (const auto& migration : kLateNightQmlSettingMigrations) {
+        if (pConfig->exists(migration.oldKey) &&
+                !pConfig->exists(migration.newKey)) {
+            pConfig->set(migration.newKey, pConfig->get(migration.oldKey));
+        }
+    }
+}
 
 // Converts a (capturing) lambda into a function pointer that can be passed to
 // qmlRegisterSingletonType.
@@ -86,6 +133,7 @@ QmlApplication::QmlApplication(
     QQuickStyle::setStyle("Basic");
 
     m_pCoreServices->initialize(app);
+    migrateLateNightQmlSettings(m_mainFilePath, m_pCoreServices->getSettings());
 
     QString configVersion = m_pCoreServices->getSettings()->getValue(
             ConfigKey("[Config]", "Version"), "");

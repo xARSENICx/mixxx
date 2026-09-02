@@ -35,9 +35,13 @@ QtObject {
     readonly property url assetDeckMinusButton: lateNightAsset("buttons", "btn__minus.svg")
     readonly property url assetDeckOutroEndButton: lateNightAsset("buttons", "btn__outro_end.svg")
     readonly property url assetDeckOutroStartButton: lateNightAsset("buttons", "btn__outro_start.svg")
+    readonly property url assetDeckPauseMiniButton: lateNightAsset("buttons", "btn__pause_deck_mini.svg")
     readonly property url assetDeckPlayButton: lateNightAsset("buttons", "btn__play_deck.svg")
+    readonly property url assetDeckPlayMiniButton: lateNightAsset("buttons", "btn__play_deck_mini.svg")
     readonly property url assetDeckPlusButton: lateNightAsset("buttons", "btn__plus.svg")
     readonly property url assetDeckQuantizeButton: lateNightAsset("buttons", "btn__quantize.svg")
+    readonly property url assetDeckRateCompactSliderBackground: lateNightAsset("sliders", "slider_pitch_deck_compact.svg")
+    readonly property url assetDeckRateCompactSyncSliderBackground: lateNightAsset("sliders", "slider_pitch_deck_compact_sync.svg")
     readonly property url assetDeckRateSliderBackground: lateNightAsset("sliders", "slider_pitch_deck.svg")
     readonly property url assetDeckRateSliderHandle: lateNightAsset("sliders", "knob_pitch_deck.svg")
     readonly property url assetDeckReloopButton: lateNightAsset("buttons", "btn__reloop.svg")
@@ -96,6 +100,7 @@ QtObject {
     readonly property color deckPanelBorderLight: "#333333"
     readonly property color deckPanelBorderRight: deckTopRowBackgroundColor
     readonly property color deckPanelColor: "#1e1e20"
+    readonly property color deckRateSliderBarColor: "#888888"
     readonly property color deckReadonlyTextColor: isClassic ? "#888888" : "#777777"
     readonly property color deckTimeTextColor: isClassic ? "#f0bb2b" : "#777777"
     readonly property color deckTopRowBackgroundColor: "#181818"
@@ -124,8 +129,6 @@ QtObject {
     readonly property color mixerFxAssignInactiveTextColor: isClassic ? mixerDimTextColor : "#555555"
     readonly property color mixerMainSeparatorDarkColor: isPaleMoon ? "#0c0c0c" : mixerPanelBorderDark
     readonly property color mixerMainSeparatorLightColor: isPaleMoon ? "#222222" : mixerPanelBorderLight
-    readonly property color mixerSplitActiveColor: isClassic ? "#888888" : "#555555"
-    readonly property color mixerSplitInactiveColor: isClassic ? deckEmbeddedButtonInactiveColor : "#222222"
     readonly property color mixerPanelBorderBottom: isPaleMoon ? "#0c0c0c" : "#0a0a0a"
     readonly property color mixerPanelBorderDark: "#080808"
     readonly property color mixerPanelBorderLeft: isPaleMoon ? "#282828" : "#333333"
@@ -137,6 +140,8 @@ QtObject {
     readonly property color mixerQuickEffectActiveColor: isClassic ? "#659f08" : "#236b00"
     readonly property color mixerQuickEffectSelectorTextColor: "#918273"
     readonly property color mixerSliderBarColor: "#257b82"
+    readonly property color mixerSplitActiveColor: isClassic ? "#888888" : "#555555"
+    readonly property color mixerSplitInactiveColor: isClassic ? deckEmbeddedButtonInactiveColor : "#222222"
     readonly property color mixerVuClipColor: mixerAccentRed
     readonly property color mixerVuLevelColor: mixerAccentRed
     readonly property url optionalDeckControlsBackgroundTile: isClassic ? lateNightAsset("style", "background_tile.png") : ""

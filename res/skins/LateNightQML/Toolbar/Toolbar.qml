@@ -16,49 +16,42 @@ Rectangle {
         Full = 2
     }
 
+    readonly property string activeAppMenuSection: hoveredAppMenuSection.length > 0 ? hoveredAppMenuSection : selectedAppMenuSection
+    readonly property string activeAppMenuSubmenu: hoveredAppMenuSubmenu.length > 0 ? hoveredAppMenuSubmenu : pinnedAppMenuSubmenu
+    property int deckSizeWithoutMixer: Toolbar.Compact
     property bool editDeck: false
+    property string hoveredAppMenuSection: ""
+    property string hoveredAppMenuSubmenu: ""
     property alias maximizeLibrary: maximizeLibraryButton.checked
+    property string pinnedAppMenuSubmenu: ""
+    property ToolbarSettingsPopup recentlyClosedPopup: null
+    property MouseArea recentlyClosedPopupButton: null
+    property double recentlyClosedPopupTimestamp: 0
+    property string selectedAppMenuSection: "Options"
     readonly property bool show4decks: show4DecksButton.checked && show4DecksButton.visible
     property bool show4decksAvailable: true
-    property alias showMaximizedDecks: maxLibraryDecksButton.checked
     property alias showEffects: showEffectsButton.checked
+    property alias showMaximizedDecks: maxLibraryDecksButton.checked
     property alias showMicAux: showMicAuxButton.checked
     property alias showMixer: showMixerButton.checked
     property alias showSamplers: showSamplersButton.checked
     property alias showWaveforms: showWaveformsButton.checked
-    readonly property string activeAppMenuSection: hoveredAppMenuSection.length > 0 ? hoveredAppMenuSection : selectedAppMenuSection
-    readonly property string activeAppMenuSubmenu: hoveredAppMenuSubmenu.length > 0 ? hoveredAppMenuSubmenu : pinnedAppMenuSubmenu
-    property string hoveredAppMenuSection: ""
-    property string hoveredAppMenuSubmenu: ""
-    property string pinnedAppMenuSubmenu: ""
-    property string selectedAppMenuSection: "Options"
-    property ToolbarSettingsPopup recentlyClosedPopup: null
-    property MouseArea recentlyClosedPopupButton: null
-    property double recentlyClosedPopupTimestamp: 0
 
-    function formatTime(date) {
-        const hours = date.getHours();
-        const displayHour = hours % 12 || 12;
-        const suffix = hours >= 12 ? "PM" : "AM";
-        return displayHour.toString() + ":" + date.getMinutes().toString().padStart(2, "0") + " " + suffix;
-    }
-    function initializeToolbarDefaults() {
-        if (!toolbarDefaultsControl.initialized || toolbarDefaultsControl.value >= 1.0) {
-            return;
+    function broadcastBackgroundColor(status) {
+        if (status === 1.0) {
+            return LateNightTheme.toolbarRecordInitColor;
         }
-        setControlValueIfInitialized(showMixerControl, 1.0);
-        setControlValueIfInitialized(showWaveformsControl, 1.0);
-        showEffectRackControl.value = 1.0;
-        showMicAuxControl.value = 0.0;
-        showSamplersControl.value = 0.0;
-        setControlValueIfInitialized(show4DecksControl, 0.0);
-        showMaximizedLibraryControl.value = 0.0;
-        maxLibraryDecksControl.value = 1.0;
-        deckSizeControl.value = Toolbar.Compact;
-        showPreviewDecksControl.value = 0.0;
-        showLibraryCoverArtControl.value = 1.0;
-        samplerRowsControl.value = 1.0;
-        toolbarDefaultsControl.value = 1.0;
+        if (status === 2.0) {
+            return LateNightTheme.toolbarBroadcastOnColor;
+        }
+        if (status === 3.0 || status === 4.0) {
+            return LateNightTheme.toolbarStatusErrorColor;
+        }
+        return LateNightTheme.toolbarButtonInactiveBackgroundColor;
+    }
+    function clearAppMenuSubmenu() {
+        hoveredAppMenuSubmenu = "";
+        pinnedAppMenuSubmenu = "";
     }
     function closeSettingsPopups() {
         appMenuPopup.close();
@@ -69,20 +62,17 @@ Rectangle {
         samplerSettingsPopup.close();
         waveformSettingsPopup.close();
     }
-    function clearAppMenuSubmenu() {
-        hoveredAppMenuSubmenu = "";
-        pinnedAppMenuSubmenu = "";
+    function formatTime(date) {
+        const hours = date.getHours();
+        const displayHour = hours % 12 || 12;
+        const suffix = hours >= 12 ? "PM" : "AM";
+        return displayHour.toString() + ":" + date.getMinutes().toString().padStart(2, "0") + " " + suffix;
     }
-    function positionPopupForButton(popup, button) {
-        const anchorButton = button.popupAnchor ? button.popupAnchor : button;
-        const mapped = anchorButton.mapToItem(root, 0, 0);
-        popup.x = Math.max(0, Math.min(root.width - popup.width, mapped.x));
-        popup.y = root.height + 2;
+    function menuHoverColor(hovered, enabled) {
+        return hovered && enabled ? LateNightTheme.toolbarMenuHoverColor : "transparent";
     }
     function openPopupForButton(popup, button) {
-        const popupWasJustClosedByThisButton = recentlyClosedPopup === popup &&
-                recentlyClosedPopupButton === button &&
-                Date.now() - recentlyClosedPopupTimestamp < 250;
+        const popupWasJustClosedByThisButton = recentlyClosedPopup === popup && recentlyClosedPopupButton === button && Date.now() - recentlyClosedPopupTimestamp < 250;
         if (popupWasJustClosedByThisButton) {
             recentlyClosedPopup = null;
             recentlyClosedPopupButton = null;
@@ -99,51 +89,17 @@ Rectangle {
         popup.anchorButton = button;
         positionPopupForButton(popup, button);
         popup.open();
-        Qt.callLater(function() {
+        Qt.callLater(function () {
             if (popup.visible && popup.anchorButton === button) {
                 positionPopupForButton(popup, button);
             }
         });
     }
-    function setControlValueIfInitialized(control, value) {
-        if (control.initialized) {
-            control.value = value;
-        }
-    }
-    function setShowWaveforms(enabled) {
-        showWaveformsButton.checked = enabled;
-        setControlValueIfInitialized(showWaveformsControl, enabled ? 1.0 : 0.0);
-    }
-    function syncShow4Decks(enabled) {
-        show4DecksButton.checked = enabled;
-        maximizedShow4DecksButton.checked = enabled;
-    }
-    function setShow4Decks(enabled) {
-        syncShow4Decks(enabled);
-        setControlValueIfInitialized(show4DecksControl, enabled ? 1.0 : 0.0);
-    }
-    function setShowMixer(enabled) {
-        showMixerButton.checked = enabled;
-        setControlValueIfInitialized(showMixerControl, enabled ? 1.0 : 0.0);
-    }
-    function setShowMaximizedDecks(enabled) {
-        maxLibraryDecksButton.checked = enabled;
-        setControlValueIfInitialized(maxLibraryDecksControl, enabled ? 1.0 : 0.0);
-    }
-    function setDeckSize(size) {
-        deckSizeControl.value = size;
-    }
-    function broadcastBackgroundColor(status) {
-        if (status === 1.0) {
-            return LateNightTheme.toolbarRecordInitColor;
-        }
-        if (status === 2.0) {
-            return LateNightTheme.toolbarBroadcastOnColor;
-        }
-        if (status === 3.0 || status === 4.0) {
-            return LateNightTheme.toolbarStatusErrorColor;
-        }
-        return LateNightTheme.toolbarButtonInactiveBackgroundColor;
+    function positionPopupForButton(popup, button) {
+        const anchorButton = button.popupAnchor ? button.popupAnchor : button;
+        const mapped = anchorButton.mapToItem(root, 0, 0);
+        popup.x = Math.max(0, Math.min(root.width - popup.width, mapped.x));
+        popup.y = root.height + 2;
     }
     function recordingBackgroundColor(status) {
         if (status === 1.0) {
@@ -154,8 +110,35 @@ Rectangle {
         }
         return LateNightTheme.toolbarButtonInactiveBackgroundColor;
     }
-    function menuHoverColor(hovered, enabled) {
-        return hovered && enabled ? LateNightTheme.toolbarMenuHoverColor : "transparent";
+    function setControlValueIfInitialized(control, value) {
+        if (control.initialized) {
+            control.value = value;
+        }
+    }
+    function setDeckSize(size) {
+        const normalizedSize = Math.max(Toolbar.Mini, Math.min(Toolbar.Full, Math.round(size)));
+        deckSizeWithoutMixer = normalizedSize;
+        setControlValueIfInitialized(deckSizeControl, normalizedSize);
+    }
+    function setShow4Decks(enabled) {
+        syncShow4Decks(enabled);
+        setControlValueIfInitialized(show4DecksControl, enabled ? 1.0 : 0.0);
+    }
+    function setShowMaximizedDecks(enabled) {
+        maxLibraryDecksButton.checked = enabled;
+        setControlValueIfInitialized(maxLibraryDecksControl, enabled ? 1.0 : 0.0);
+    }
+    function setShowMixer(enabled) {
+        showMixerButton.checked = enabled;
+        setControlValueIfInitialized(showMixerControl, enabled ? 1.0 : 0.0);
+    }
+    function setShowWaveforms(enabled) {
+        showWaveformsButton.checked = enabled;
+        setControlValueIfInitialized(showWaveformsControl, enabled ? 1.0 : 0.0);
+    }
+    function syncShow4Decks(enabled) {
+        show4DecksButton.checked = enabled;
+        maximizedShow4DecksButton.checked = enabled;
     }
 
     color: LateNightTheme.toolbarRootBackgroundColor
@@ -166,19 +149,6 @@ Rectangle {
         color: LateNightTheme.toolbarBottomBorderColor
         height: 1
         width: parent.width
-    }
-    Mixxx.ControlProxy {
-        id: toolbarDefaultsControl
-
-        group: "[LateNightQML]"
-        key: "initialized_toolbar_defaults"
-
-        onInitializedChanged: {
-            root.initializeToolbarDefaults();
-        }
-        onValueChanged: {
-            root.initializeToolbarDefaults();
-        }
     }
     Mixxx.ControlProxy {
         id: showMixerControl
@@ -253,8 +223,8 @@ Rectangle {
     Mixxx.ControlProxy {
         id: maxLibraryDecksControl
 
-        group: "[LateNight]"
-        key: "max_lib_show_decks"
+        group: "[Skin]"
+        key: "latenight_max_lib_show_decks"
 
         onInitializedChanged: {
             maxLibraryDecksButton.checked = value > 0;
@@ -266,8 +236,17 @@ Rectangle {
     Mixxx.ControlProxy {
         id: deckSizeControl
 
-        group: "[LateNight]"
-        key: "deck_size_without_mixer"
+        group: "[Skin]"
+        key: "latenight_deck_size_without_mixer"
+
+        onInitializedChanged: {
+            if (initialized) {
+                root.deckSizeWithoutMixer = Math.max(Toolbar.Mini, Math.min(Toolbar.Full, Math.round(value)));
+            }
+        }
+        onValueChanged: {
+            root.deckSizeWithoutMixer = Math.max(Toolbar.Mini, Math.min(Toolbar.Full, Math.round(value)));
+        }
     }
     Mixxx.ControlProxy {
         id: showHotcuesControl
@@ -316,6 +295,36 @@ Rectangle {
 
         group: "[Skin]"
         key: "show_key_controls"
+    }
+    Mixxx.ControlProxy {
+        id: showLoopControlsCompactControl
+
+        group: "[Skin]"
+        key: "show_loop_controls_compact"
+    }
+    Mixxx.ControlProxy {
+        id: showBeatjumpControlsCompactControl
+
+        group: "[Skin]"
+        key: "show_beatjump_controls_compact"
+    }
+    Mixxx.ControlProxy {
+        id: showRateControlsCompactControl
+
+        group: "[Skin]"
+        key: "show_rate_controls_compact"
+    }
+    Mixxx.ControlProxy {
+        id: showKeyControlsCompactControl
+
+        group: "[Skin]"
+        key: "show_key_controls_compact"
+    }
+    Mixxx.ControlProxy {
+        id: showSyncButtonCompactControl
+
+        group: "[Skin]"
+        key: "latenight_show_sync_button_compact"
     }
     Mixxx.ControlProxy {
         id: showVinylControlsControl
@@ -404,26 +413,26 @@ Rectangle {
     Mixxx.ControlProxy {
         id: samplerRowsControl
 
-        group: "[LateNight]"
-        key: "sampler_rows"
+        group: "[Skin]"
+        key: "latenight_sampler_rows"
     }
     Mixxx.ControlProxy {
         id: expandSamplers14Control
 
-        group: "[LateNight]"
-        key: "expand_samplers_1-4"
+        group: "[Skin]"
+        key: "latenight_expand_samplers_1_4"
     }
     Mixxx.ControlProxy {
         id: expandSamplers18Control
 
-        group: "[LateNight]"
-        key: "expand_samplers_1-8"
+        group: "[Skin]"
+        key: "latenight_expand_samplers_1_8"
     }
     Mixxx.ControlProxy {
         id: expandSamplers916Control
 
-        group: "[LateNight]"
-        key: "expand_samplers_9-16"
+        group: "[Skin]"
+        key: "latenight_expand_samplers_9_16"
     }
     Mixxx.ControlProxy {
         id: showSamplerFxControl
@@ -460,7 +469,6 @@ Rectangle {
 
         group: "[Recording]"
         key: "status"
-
     }
     Mixxx.ControlProxy {
         id: recordingToggleControl
@@ -1105,9 +1113,9 @@ Rectangle {
                     visible: root.activeAppMenuSection === "Options"
                 }
                 ToolbarAppMenuAction {
-                    enabled: false
                     checkable: true
                     checked: true
+                    enabled: false
                     shortcut: "Ctrl+`"
                     text: "Enable Keyboard Shortcuts"
                     visible: root.activeAppMenuSection === "Options"
@@ -1227,8 +1235,8 @@ Rectangle {
         minimumWidth: 175
 
         ColumnLayout {
-            Layout.fillWidth: true
             Layout.bottomMargin: 7
+            Layout.fillWidth: true
             Layout.leftMargin: 5
             Layout.rightMargin: 5
             Layout.topMargin: 2
@@ -1277,8 +1285,9 @@ Rectangle {
                 }
                 Item {
                     id: hideMixerBtn
-                    Layout.preferredHeight: 18
+
                     Layout.fillWidth: true
+                    Layout.preferredHeight: 18
                     implicitWidth: hideMixerText.implicitWidth + 8
                     visible: showMixerButton.checked
 
@@ -1287,9 +1296,9 @@ Rectangle {
                         color: hideMixerMouseArea.containsMouse ? LateNightTheme.toolbarMenuHoverColor : "transparent"
                         radius: 1
                     }
-
                     Text {
                         id: hideMixerText
+
                         anchors.left: parent.left
                         anchors.leftMargin: 4
                         anchors.verticalCenter: parent.verticalCenter
@@ -1298,12 +1307,13 @@ Rectangle {
                         font.pixelSize: 12
                         text: "hide mixer to select"
                     }
-
                     MouseArea {
                         id: hideMixerMouseArea
+
                         anchors.fill: parent
-                        hoverEnabled: true
                         cursorShape: Qt.ArrowCursor
+                        hoverEnabled: true
+
                         onClicked: {
                             root.setShowMixer(false);
                         }
@@ -1316,7 +1326,7 @@ Rectangle {
                     visible: !showMixerButton.checked
 
                     ToolbarMenuInlineChoice {
-                        checked: deckSizeControl.value === Toolbar.Full
+                        checked: root.deckSizeWithoutMixer === Toolbar.Full
                         minimumWidth: 40
                         text: "Full"
 
@@ -1325,7 +1335,7 @@ Rectangle {
                         }
                     }
                     ToolbarMenuInlineChoice {
-                        checked: deckSizeControl.value === Toolbar.Compact
+                        checked: root.deckSizeWithoutMixer === Toolbar.Compact
                         minimumWidth: 66
                         text: "Compact"
 
@@ -1334,7 +1344,7 @@ Rectangle {
                         }
                     }
                     ToolbarMenuInlineChoice {
-                        checked: deckSizeControl.value === Toolbar.Mini
+                        checked: root.deckSizeWithoutMixer === Toolbar.Mini
                         minimumWidth: 40
                         text: "Mini"
 
@@ -1380,15 +1390,15 @@ Rectangle {
                 text: "Intro & Outro Cues"
             }
             ToolbarMenuToggle {
-                control: showLoopControlsControl
+                control: root.deckSizeWithoutMixer === Toolbar.Compact && !showMixerButton.checked ? showLoopControlsCompactControl : showLoopControlsControl
                 text: "Loop Controls"
             }
             ToolbarMenuToggle {
-                control: showBeatjumpControlsControl
+                control: root.deckSizeWithoutMixer === Toolbar.Compact && !showMixerButton.checked ? showBeatjumpControlsCompactControl : showBeatjumpControlsControl
                 text: "Beatjump Controls"
             }
             ToolbarMenuToggle {
-                control: showRateControlsControl
+                control: root.deckSizeWithoutMixer === Toolbar.Compact && !showMixerButton.checked ? showRateControlsCompactControl : showRateControlsControl
                 text: "Rate Controls"
             }
             ToolbarMenuToggle {
@@ -1396,9 +1406,17 @@ Rectangle {
                 enabled: showRateControlsControl.value > 0
                 indent: 14
                 text: "Rate Adjust Buttons"
+                visible: root.deckSizeWithoutMixer !== Toolbar.Compact || showMixerButton.checked
             }
             ToolbarMenuToggle {
-                control: showKeyControlsControl
+                control: showSyncButtonCompactControl
+                enabled: showRateControlsCompactControl.value > 0
+                indent: 14
+                text: "Sync Button"
+                visible: root.deckSizeWithoutMixer === Toolbar.Compact && !showMixerButton.checked
+            }
+            ToolbarMenuToggle {
+                control: root.deckSizeWithoutMixer === Toolbar.Compact && !showMixerButton.checked ? showKeyControlsCompactControl : showKeyControlsControl
                 text: "Key Controls"
             }
             ToolbarMenuToggle {
@@ -1424,8 +1442,8 @@ Rectangle {
         id: mixerSettingsPopup
 
         ToolbarMenuSectionToggle {
-            title: "Mixer"
             control: showMixerControl
+            title: "Mixer"
 
             ToolbarMenuToggle {
                 control: mainHeadMixerControl
@@ -1454,8 +1472,8 @@ Rectangle {
         id: waveformSettingsPopup
 
         ToolbarMenuSectionToggle {
-            title: "Waveforms"
             control: showWaveformsControl
+            title: "Waveforms"
 
             ToolbarMenuToggle {
                 control: hotcueTimingShiftControl
@@ -1475,8 +1493,8 @@ Rectangle {
         minimumWidth: 185
 
         ColumnLayout {
-            Layout.fillWidth: true
             Layout.bottomMargin: 7
+            Layout.fillWidth: true
             Layout.leftMargin: 5
             Layout.rightMargin: 5
             Layout.topMargin: 2
@@ -1484,6 +1502,7 @@ Rectangle {
 
             Item {
                 id: effectUnitsHeader
+
                 property bool checked: showEffectRackControl.value > 0
 
                 Layout.fillWidth: true
@@ -1496,9 +1515,9 @@ Rectangle {
                     color: root.menuHoverColor(effectUnitsHeaderMouseArea.containsMouse, effectUnitsHeader.enabled)
                     radius: 1
                 }
-
                 MouseArea {
                     id: effectUnitsHeaderMouseArea
+
                     anchors.fill: parent
                     cursorShape: Qt.ArrowCursor
                     hoverEnabled: true
@@ -1507,7 +1526,6 @@ Rectangle {
                         showEffectRackControl.value = effectUnitsHeader.checked ? 0.0 : 1.0;
                     }
                 }
-
                 RowLayout {
                     id: effectUnitsHeaderContent
 
@@ -1521,7 +1539,6 @@ Rectangle {
                         fillMode: Image.PreserveAspectFit
                         source: effectUnitsHeader.checked ? LateNightTheme.lateNightAsset("buttons", "btn__lib_checkmark_ivory.svg") : LateNightTheme.lateNightAsset("buttons", "btn__menu_checkbox.svg")
                     }
-
                     ToolbarMenuInlineChoice {
                         checked: show4EffectUnitsControl.value === 0.0
                         enabled: showEffectRackControl.value > 0
@@ -1548,7 +1565,6 @@ Rectangle {
                     }
                 }
             }
-
             ToolbarMenuToggle {
                 control: showSuperKnobsControl
                 text: "Super Knobs"
@@ -1561,8 +1577,8 @@ Rectangle {
         minimumWidth: 245
 
         ColumnLayout {
-            Layout.fillWidth: true
             Layout.bottomMargin: 7
+            Layout.fillWidth: true
             Layout.leftMargin: 5
             Layout.rightMargin: 5
             Layout.topMargin: 2
@@ -1570,6 +1586,7 @@ Rectangle {
 
             Item {
                 id: samplersHeader
+
                 property bool checked: showSamplersControl.value > 0
 
                 Layout.fillWidth: true
@@ -1582,9 +1599,9 @@ Rectangle {
                     color: root.menuHoverColor(samplersHeaderMouseArea.containsMouse, samplersHeader.enabled)
                     radius: 1
                 }
-
                 MouseArea {
                     id: samplersHeaderMouseArea
+
                     anchors.fill: parent
                     cursorShape: Qt.ArrowCursor
                     hoverEnabled: true
@@ -1593,7 +1610,6 @@ Rectangle {
                         showSamplersControl.value = samplersHeader.checked ? 0.0 : 1.0;
                     }
                 }
-
                 RowLayout {
                     id: samplersHeaderContent
 
@@ -1607,7 +1623,6 @@ Rectangle {
                         fillMode: Image.PreserveAspectFit
                         source: samplersHeader.checked ? LateNightTheme.lateNightAsset("buttons", "btn__lib_checkmark_ivory.svg") : LateNightTheme.lateNightAsset("buttons", "btn__menu_checkbox.svg")
                     }
-
                     ToolbarMenuInlineChoice {
                         checked: samplerRowsControl.value === 0.0
                         enabled: showSamplersControl.value > 0
@@ -1617,7 +1632,6 @@ Rectangle {
                             samplerRowsControl.value = 0.0;
                         }
                     }
-
                     ToolbarMenuInlineChoice {
                         checked: samplerRowsControl.value === 1.0
                         enabled: showSamplersControl.value > 0
@@ -1627,7 +1641,6 @@ Rectangle {
                             samplerRowsControl.value = 1.0;
                         }
                     }
-
                     ToolbarMenuInlineChoice {
                         checked: samplerRowsControl.value === 2.0
                         enabled: showSamplersControl.value > 0
@@ -1638,7 +1651,6 @@ Rectangle {
                             samplerRowsControl.value = 2.0;
                         }
                     }
-
                     ToolbarMenuInlineChoice {
                         checked: samplerRowsControl.value === 4.0
                         enabled: showSamplersControl.value > 0
@@ -1657,23 +1669,22 @@ Rectangle {
                     }
                 }
             }
-
             ToolbarMenuToggle {
                 control: showSamplerFxControl
                 text: "Fx controls"
             }
-
             RowLayout {
                 Layout.fillWidth: true
                 Layout.leftMargin: 20
                 Layout.minimumWidth: implicitWidth
                 Layout.preferredHeight: 18
-                spacing: 3
                 enabled: showSamplerFxControl.value > 0
                 opacity: enabled ? 1.0 : 0.45
+                spacing: 3
 
                 Item {
                     id: loadBankBtn
+
                     Layout.preferredHeight: 18
                     Layout.preferredWidth: loadBankText.implicitWidth + 8
 
@@ -1682,36 +1693,36 @@ Rectangle {
                         color: loadBankMouseArea.containsMouse ? LateNightTheme.toolbarMenuHoverColor : "transparent"
                         radius: 1
                     }
-
                     Text {
                         id: loadBankText
+
                         anchors.centerIn: parent
                         color: loadBankMouseArea.containsMouse ? LateNightTheme.toolbarMenuHoverTextColor : LateNightTheme.toolbarMenuTextColor
                         font.family: "Open Sans"
                         font.pixelSize: 12
                         text: "Load"
                     }
-
                     MouseArea {
                         id: loadBankMouseArea
+
                         anchors.fill: parent
-                        hoverEnabled: true
                         cursorShape: Qt.ArrowCursor
+                        hoverEnabled: true
+
                         onClicked: {
                             loadSamplerBankControl.value = 1.0;
                         }
                     }
                 }
-
                 Text {
                     color: LateNightTheme.toolbarMenuTextColor
                     font.family: "Open Sans"
                     font.pixelSize: 12
                     text: "/"
                 }
-
                 Item {
                     id: saveBankBtn
+
                     Layout.preferredHeight: 18
                     Layout.preferredWidth: saveBankText.implicitWidth + 8
 
@@ -1720,34 +1731,35 @@ Rectangle {
                         color: saveBankMouseArea.containsMouse ? LateNightTheme.toolbarMenuHoverColor : "transparent"
                         radius: 1
                     }
-
                     Text {
                         id: saveBankText
+
                         anchors.centerIn: parent
                         color: saveBankMouseArea.containsMouse ? LateNightTheme.toolbarMenuHoverTextColor : LateNightTheme.toolbarMenuTextColor
                         font.family: "Open Sans"
                         font.pixelSize: 12
                         text: "Save"
                     }
-
                     MouseArea {
                         id: saveBankMouseArea
+
                         anchors.fill: parent
-                        hoverEnabled: true
                         cursorShape: Qt.ArrowCursor
+                        hoverEnabled: true
+
                         onClicked: {
                             saveSamplerBankControl.value = 1.0;
                         }
                     }
                 }
-
                 Text {
                     id: samplerBankText
+
+                    Layout.fillWidth: true
                     color: LateNightTheme.toolbarMenuTextColor
                     font.family: "Open Sans"
                     font.pixelSize: 12
                     text: "Sampler Bank"
-                    Layout.fillWidth: true
                 }
             }
         }
@@ -1770,6 +1782,7 @@ Rectangle {
             }
         }
     }
+
     component AutoDjIndicator: Image {
         required property bool active
 
@@ -1812,17 +1825,18 @@ Rectangle {
             anchors.fill: parent
             anchors.leftMargin: 15
             color: broadcastIndicator.status > 0 ? LateNightTheme.toolbarButtonActiveTextColor : LateNightTheme.toolbarButtonInactiveTextColor
+            horizontalAlignment: Text.AlignHCenter
+            opacity: broadcastIndicator.status === 1.0 || broadcastIndicator.status === 3.0 || broadcastIndicator.status === 4.0 ? broadcastIndicator.pulseOpacity : 1.0
+            renderType: Text.NativeRendering
+            text: broadcastIndicator.status === 1.0 ? "..." : (broadcastIndicator.status === 3.0 || broadcastIndicator.status === 4.0 ? "ERROR" : "ON AIR")
+            verticalAlignment: Text.AlignVCenter
+
             font {
                 family: "Open Sans"
                 pixelSize: 11
                 styleName: "Bold"
                 weight: Font.Bold
             }
-            horizontalAlignment: Text.AlignHCenter
-            opacity: broadcastIndicator.status === 1.0 || broadcastIndicator.status === 3.0 || broadcastIndicator.status === 4.0 ? broadcastIndicator.pulseOpacity : 1.0
-            renderType: Text.NativeRendering
-            text: broadcastIndicator.status === 1.0 ? "..." : (broadcastIndicator.status === 3.0 || broadcastIndicator.status === 4.0 ? "ERROR" : "ON AIR")
-            verticalAlignment: Text.AlignVCenter
         }
     }
     component ClockIndicator: Text {
@@ -1834,32 +1848,6 @@ Rectangle {
         horizontalAlignment: Text.AlignHCenter
         text: "--:-- --"
         verticalAlignment: Text.AlignVCenter
-    }
-    component LateNightToolbarMenuButton: MouseArea {
-        id: menuButton
-
-        required property ToolbarSettingsPopup popup
-        property bool wasPopupOpenOnPress: false
-
-        Layout.alignment: Qt.AlignVCenter
-        Layout.preferredHeight: 20
-        Layout.preferredWidth: 26
-        cursorShape: Qt.ArrowCursor
-
-        onPressed: {
-            wasPopupOpenOnPress = popup.visible && popup.anchorButton === menuButton;
-        }
-
-        LateNightToolbarButtonBackground {
-            active: menuButton.popup.visible
-        }
-        Image {
-            anchors.centerIn: parent
-            fillMode: Image.PreserveAspectFit
-            height: 13
-            source: LateNightTheme.assetToolbarMenuIcon
-            width: 13
-        }
     }
     component LateNightToolbarButton: MouseArea {
         id: toolbarButton
@@ -1887,16 +1875,17 @@ Rectangle {
             anchors.fill: parent
             color: toolbarButton.checked ? LateNightTheme.toolbarButtonActiveTextColor : LateNightTheme.toolbarButtonInactiveTextColor
             elide: Text.ElideRight
+            horizontalAlignment: Text.AlignHCenter
+            renderType: Text.NativeRendering
+            text: toolbarButton.text
+            verticalAlignment: Text.AlignVCenter
+
             font {
                 family: "Open Sans"
                 pixelSize: 11
                 styleName: "Bold"
                 weight: Font.Bold
             }
-            horizontalAlignment: Text.AlignHCenter
-            renderType: Text.NativeRendering
-            text: toolbarButton.text
-            verticalAlignment: Text.AlignVCenter
         }
     }
     component LateNightToolbarButtonBackground: Item {
@@ -1946,6 +1935,32 @@ Rectangle {
             height: 16
             source: LateNightTheme.assetToolbarDropdownIcon
             width: 12
+        }
+    }
+    component LateNightToolbarMenuButton: MouseArea {
+        id: menuButton
+
+        required property ToolbarSettingsPopup popup
+        property bool wasPopupOpenOnPress: false
+
+        Layout.alignment: Qt.AlignVCenter
+        Layout.preferredHeight: 20
+        Layout.preferredWidth: 26
+        cursorShape: Qt.ArrowCursor
+
+        onPressed: {
+            wasPopupOpenOnPress = popup.visible && popup.anchorButton === menuButton;
+        }
+
+        LateNightToolbarButtonBackground {
+            active: menuButton.popup.visible
+        }
+        Image {
+            anchors.centerIn: parent
+            fillMode: Image.PreserveAspectFit
+            height: 13
+            source: LateNightTheme.assetToolbarMenuIcon
+            width: 13
         }
     }
     component LatencyIndicator: Item {
@@ -2046,60 +2061,6 @@ Rectangle {
             }
         }
     }
-    component ToolbarAppMenuTab: Item {
-        id: appMenuTab
-
-        property bool selected: false
-        property string text: ""
-
-        signal triggered
-
-        Layout.fillWidth: true
-        implicitHeight: 17
-        implicitWidth: appMenuTabText.implicitWidth + 8
-
-        Rectangle {
-            anchors.fill: parent
-            color: appMenuTabMouseArea.containsMouse || appMenuTab.selected ? LateNightTheme.toolbarMenuHoverColor : "transparent"
-        }
-        MouseArea {
-            id: appMenuTabMouseArea
-
-            anchors.fill: parent
-            cursorShape: Qt.ArrowCursor
-            hoverEnabled: true
-
-            onEntered: {
-                root.hoveredAppMenuSection = appMenuTab.text;
-                root.clearAppMenuSubmenu();
-            }
-            onClicked: {
-                root.hoveredAppMenuSection = "";
-                root.clearAppMenuSubmenu();
-                appMenuTab.triggered();
-            }
-        }
-        Text {
-            id: appMenuTabText
-
-            anchors.left: parent.left
-            anchors.leftMargin: 5
-            anchors.verticalCenter: parent.verticalCenter
-            color: appMenuTabMouseArea.containsMouse || appMenuTab.selected ? LateNightTheme.toolbarMenuHoverTextColor : LateNightTheme.toolbarMenuTextColor
-            elide: Text.ElideRight
-            font.family: "Open Sans"
-            font.pixelSize: 12
-            text: appMenuTab.text
-            width: parent.width - anchors.leftMargin
-        }
-    }
-    component ToolbarAppMenuSeparator: Rectangle {
-        Layout.fillWidth: true
-        Layout.leftMargin: 4
-        Layout.rightMargin: 4
-        Layout.preferredHeight: 1
-        color: LateNightTheme.toolbarPopupBorderColor
-    }
     component ToolbarAppMenuAction: Item {
         id: appMenuAction
 
@@ -2129,14 +2090,14 @@ Rectangle {
             cursorShape: Qt.ArrowCursor
             hoverEnabled: true
 
-            onEntered: {
-                if (appMenuAction.enabled) {
-                    appMenuAction.hovered();
-                }
-            }
             onClicked: {
                 if (appMenuAction.enabled) {
                     appMenuAction.triggered();
+                }
+            }
+            onEntered: {
+                if (appMenuAction.enabled) {
+                    appMenuAction.hovered();
                 }
             }
         }
@@ -2189,11 +2150,66 @@ Rectangle {
             width: 8
         }
     }
+    component ToolbarAppMenuSeparator: Rectangle {
+        Layout.fillWidth: true
+        Layout.leftMargin: 4
+        Layout.preferredHeight: 1
+        Layout.rightMargin: 4
+        color: LateNightTheme.toolbarPopupBorderColor
+    }
+    component ToolbarAppMenuTab: Item {
+        id: appMenuTab
+
+        property bool selected: false
+        property string text: ""
+
+        signal triggered
+
+        Layout.fillWidth: true
+        implicitHeight: 17
+        implicitWidth: appMenuTabText.implicitWidth + 8
+
+        Rectangle {
+            anchors.fill: parent
+            color: appMenuTabMouseArea.containsMouse || appMenuTab.selected ? LateNightTheme.toolbarMenuHoverColor : "transparent"
+        }
+        MouseArea {
+            id: appMenuTabMouseArea
+
+            anchors.fill: parent
+            cursorShape: Qt.ArrowCursor
+            hoverEnabled: true
+
+            onClicked: {
+                root.hoveredAppMenuSection = "";
+                root.clearAppMenuSubmenu();
+                appMenuTab.triggered();
+            }
+            onEntered: {
+                root.hoveredAppMenuSection = appMenuTab.text;
+                root.clearAppMenuSubmenu();
+            }
+        }
+        Text {
+            id: appMenuTabText
+
+            anchors.left: parent.left
+            anchors.leftMargin: 5
+            anchors.verticalCenter: parent.verticalCenter
+            color: appMenuTabMouseArea.containsMouse || appMenuTab.selected ? LateNightTheme.toolbarMenuHoverTextColor : LateNightTheme.toolbarMenuTextColor
+            elide: Text.ElideRight
+            font.family: "Open Sans"
+            font.pixelSize: 12
+            text: appMenuTab.text
+            width: parent.width - anchors.leftMargin
+        }
+    }
     component ToolbarMenuInlineChoice: Item {
         id: inlineChoice
+
         property bool checked: false
-        property string text: ""
         property int minimumWidth: 28
+        property string text: ""
 
         signal clicked
 
@@ -2206,12 +2222,12 @@ Rectangle {
             color: root.menuHoverColor(inlineMouseArea.containsMouse, inlineChoice.enabled)
             radius: 1
         }
-
         MouseArea {
             id: inlineMouseArea
+
             anchors.fill: parent
-            hoverEnabled: true
             cursorShape: Qt.ArrowCursor
+            hoverEnabled: true
 
             onClicked: {
                 if (inlineChoice.enabled) {
@@ -2233,8 +2249,8 @@ Rectangle {
     component ToolbarMenuSection: ColumnLayout {
         required property string title
 
-        Layout.fillWidth: true
         Layout.bottomMargin: 7
+        Layout.fillWidth: true
         Layout.leftMargin: 5
         Layout.rightMargin: 5
         Layout.topMargin: 2
@@ -2251,11 +2267,12 @@ Rectangle {
     }
     component ToolbarMenuSectionToggle: ColumnLayout {
         id: sectionToggle
-        required property string title
-        required property Mixxx.ControlProxy control
 
-        Layout.fillWidth: true
+        required property Mixxx.ControlProxy control
+        required property string title
+
         Layout.bottomMargin: 7
+        Layout.fillWidth: true
         Layout.leftMargin: 5
         Layout.rightMargin: 5
         Layout.topMargin: 2
@@ -2263,6 +2280,7 @@ Rectangle {
 
         Item {
             id: headerToggle
+
             property bool checked: sectionToggle.control ? sectionToggle.control.value > 0 : false
 
             Layout.fillWidth: true
@@ -2274,9 +2292,9 @@ Rectangle {
                 color: root.menuHoverColor(headerToggleMouseArea.containsMouse, headerToggle.enabled)
                 radius: 1
             }
-
             MouseArea {
                 id: headerToggleMouseArea
+
                 anchors.fill: parent
                 cursorShape: Qt.ArrowCursor
                 hoverEnabled: true
@@ -2329,9 +2347,9 @@ Rectangle {
             color: root.menuHoverColor(menuToggleMouseArea.containsMouse, menuToggle.enabled)
             radius: 1
         }
-
         MouseArea {
             id: menuToggleMouseArea
+
             anchors.fill: parent
             cursorShape: Qt.ArrowCursor
             hoverEnabled: true
@@ -2376,6 +2394,18 @@ Rectangle {
         padding: 3
         width: Math.min(root.width, Math.max(minimumWidth, contentColumn.implicitWidth + leftPadding + rightPadding))
 
+        background: Rectangle {
+            border.color: LateNightTheme.toolbarPopupBorderColor
+            border.width: 1
+            color: LateNightTheme.toolbarPopupBackgroundColor
+            radius: 2
+        }
+        contentItem: ColumnLayout {
+            id: contentColumn
+
+            spacing: 0
+        }
+
         onClosed: {
             if (anchorButton) {
                 root.recentlyClosedPopup = toolbarSettingsPopup;
@@ -2388,18 +2418,6 @@ Rectangle {
             if (visible && anchorButton) {
                 root.positionPopupForButton(toolbarSettingsPopup, anchorButton);
             }
-        }
-
-        background: Rectangle {
-            border.color: LateNightTheme.toolbarPopupBorderColor
-            border.width: 1
-            color: LateNightTheme.toolbarPopupBackgroundColor
-            radius: 2
-        }
-        contentItem: ColumnLayout {
-            id: contentColumn
-
-            spacing: 0
         }
     }
 }
