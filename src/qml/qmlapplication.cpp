@@ -497,7 +497,10 @@ bool QmlApplication::eventFilter(QObject* watched, QEvent* event) {
     if (qmlRenderDiagnosticsEnabled()) {
         if (auto* window = qobject_cast<QQuickWindow*>(watched)) {
             switch (event->type()) {
+#if QT_VERSION >= QT_VERSION_CHECK(6, 6, 0)
+            // DevicePixelRatioChange was added after the minimum supported Qt version.
             case QEvent::DevicePixelRatioChange:
+#endif
             case QEvent::ScreenChangeInternal:
             case QEvent::Resize:
             case QEvent::Move:

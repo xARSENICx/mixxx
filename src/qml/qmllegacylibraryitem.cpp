@@ -2017,7 +2017,10 @@ void QmlLegacyLibraryItem::updatePolish() {
 bool QmlLegacyLibraryItem::eventFilter(QObject* pWatched, QEvent* pEvent) {
     if (pWatched == m_renderWindow) {
         switch (pEvent->type()) {
+#if QT_VERSION >= QT_VERSION_CHECK(6, 6, 0)
+        // DevicePixelRatioChange was added after the minimum supported Qt version.
         case QEvent::DevicePixelRatioChange:
+#endif
         case QEvent::ScreenChangeInternal:
             updateRenderScreen(m_renderWindow->screen());
             updateEffectiveDpr();

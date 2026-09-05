@@ -3,7 +3,8 @@
 #include <QCoreApplication>
 #include <QEvent>
 #include <QEventLoop>
-#include <QTemporaryFile>
+#include <QFile>
+#include <QTemporaryDir>
 #include <QThread>
 #include <QTimer>
 #include <QUrl>
@@ -28,10 +29,16 @@ class QmlAutoReloadTest : public testing::Test {
 };
 
 TEST_F(QmlAutoReloadTest, WorkerRegistrationTriggersOnOwnerThread) {
-    QTemporaryFile file;
-    ASSERT_TRUE(file.open());
+    QTemporaryDir directory;
+    ASSERT_TRUE(directory.isValid());
+    const auto filePath = directory.filePath(QStringLiteral("watched.qml"));
+    {
+        QFile file(filePath);
+        ASSERT_TRUE(file.open(QIODevice::WriteOnly));
+        ASSERT_EQ(1, file.write("x"));
+    }
     mixxx::qml::QmlAutoReload reloader;
-    registerFromWorker(&reloader, QUrl::fromLocalFile(file.fileName()));
+    registerFromWorker(&reloader, QUrl::fromLocalFile(filePath));
     QCoreApplication::sendPostedEvents(&reloader, QEvent::MetaCall);
 
     QEventLoop loop;
@@ -41,18 +48,28 @@ TEST_F(QmlAutoReloadTest, WorkerRegistrationTriggersOnOwnerThread) {
         EXPECT_EQ(reloader.thread(), QThread::currentThread());
         loop.quit();
     });
-    ASSERT_EQ(1, file.write("x"));
-    ASSERT_TRUE(file.flush());
+    {
+        QFile file(filePath);
+        ASSERT_TRUE(file.open(QIODevice::WriteOnly | QIODevice::Append));
+        ASSERT_EQ(1, file.write("x"));
+        ASSERT_TRUE(file.flush());
+    }
     QTimer::singleShot(2000, &loop, &QEventLoop::quit);
     loop.exec();
     EXPECT_TRUE(triggered);
 }
 
 TEST_F(QmlAutoReloadTest, ClearDiscardsPendingWorkerRegistration) {
-    QTemporaryFile file;
-    ASSERT_TRUE(file.open());
+    QTemporaryDir directory;
+    ASSERT_TRUE(directory.isValid());
+    const auto filePath = directory.filePath(QStringLiteral("watched.qml"));
+    {
+        QFile file(filePath);
+        ASSERT_TRUE(file.open(QIODevice::WriteOnly));
+        ASSERT_EQ(1, file.write("x"));
+    }
     mixxx::qml::QmlAutoReload reloader;
-    registerFromWorker(&reloader, QUrl::fromLocalFile(file.fileName()));
+    registerFromWorker(&reloader, QUrl::fromLocalFile(filePath));
     reloader.clear();
     QCoreApplication::sendPostedEvents(&reloader, QEvent::MetaCall);
 
@@ -62,8 +79,12 @@ TEST_F(QmlAutoReloadTest, ClearDiscardsPendingWorkerRegistration) {
         triggered = true;
         loop.quit();
     });
-    ASSERT_EQ(1, file.write("x"));
-    ASSERT_TRUE(file.flush());
+    {
+        QFile file(filePath);
+        ASSERT_TRUE(file.open(QIODevice::WriteOnly | QIODevice::Append));
+        ASSERT_EQ(1, file.write("x"));
+        ASSERT_TRUE(file.flush());
+    }
     QTimer::singleShot(200, &loop, &QEventLoop::quit);
     loop.exec();
     EXPECT_FALSE(triggered);
