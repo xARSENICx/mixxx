@@ -104,6 +104,10 @@ QtObject {
     readonly property url assetMicAuxAddButton: lateNightAsset("buttons", "btn__plus_flat.svg")
     readonly property url assetMicAuxGainKnobBackground: lateNightAsset("knobs", "knob_bg_small.svg")
     readonly property url assetMicAuxUnconfiguredBackground: lateNightAsset("buttons", "btn_flat_square.svg")
+    readonly property url assetMicAuxVuClippingActive: lateNightAsset("style", "vu_micaux_clipping_active.png")
+    readonly property url assetMicAuxVuClippingBackground: lateNightAsset("style", "vu_micaux_clipping_bg_.png")
+    readonly property url assetMicAuxVuLevelActive: lateNightAsset("style", "vu_micaux_level_active.png")
+    readonly property url assetMicAuxVuLevelBackground: lateNightAsset("style", "vu_micaux_level_bg_.png")
     readonly property url assetMicDuckAutoButton: lateNightAsset("buttons", "btn__mic_duck_auto.svg")
     readonly property url assetMicDuckManualButton: lateNightAsset("buttons", "btn__mic_duck_manual.svg")
     readonly property url assetMicDuckOffButton: lateNightAsset("buttons", "btn__mic_duck_off.svg")
@@ -232,7 +236,6 @@ QtObject {
     readonly property color mixerSliderBarColor: "#257b82"
     readonly property color mixerVuClipColor: mixerAccentRed
     readonly property color mixerVuLevelColor: mixerAccentRed
-    readonly property color micAuxActiveColor: accentColor
     readonly property color micAuxDuckingArcColor: "#a00000"
     readonly property color micAuxGainColor: isClassic ? "#db7700" : "#b24c12"
     readonly property color micAuxLabelTextColor: primaryDeckTextColor

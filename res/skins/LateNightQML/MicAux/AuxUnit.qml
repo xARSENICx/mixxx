@@ -22,6 +22,7 @@ Item {
     Loader {
         id: unitLoader
 
+        anchors.fill: parent
         sourceComponent: root.inputConfigured ? configuredUnit : unconfiguredUnit
     }
     Mixxx.ControlProxy {
@@ -35,10 +36,12 @@ Item {
 
         Controls.Panel {
             color: LateNightTheme.micAuxPanelColor
-            implicitHeight: 78
-            implicitWidth: 149
+            implicitHeight: 68
+            implicitWidth: contentLayout.implicitWidth + contentLayout.anchors.leftMargin + contentLayout.anchors.rightMargin
 
             RowLayout {
+                id: contentLayout
+
                 anchors.fill: parent
                 anchors.margins: 2
                 spacing: 2
@@ -67,29 +70,34 @@ Item {
                         Layout.alignment: Qt.AlignHCenter
                         Layout.preferredHeight: 26
                         Layout.preferredWidth: 42
-                        activeColor: LateNightTheme.micAuxActiveColor
+                        activeColor: LateNightTheme.activePlayCueColor
+                        activeIconSuffix: LateNightTheme.isPaleMoon ? "active" : ""
                         group: root.group
                         iconSource: LateNightTheme.assetAuxMainMixButton
                         key: "main_mix"
+                        powerWindow: true
                         stretchIcon: true
-                        toggleable: true
                     }
                 }
                 Controls.ImageVuMeter {
-                    Layout.fillHeight: true
+                    Layout.alignment: Qt.AlignVCenter
+                    Layout.preferredHeight: 55
                     Layout.preferredWidth: 8
                     group: root.group
                     levelKey: "vu_meter"
+                    micAux: true
                 }
                 ColumnLayout {
                     Layout.fillHeight: true
                     Layout.fillWidth: true
+                    Layout.leftMargin: 3
+                    Layout.rightMargin: 3
                     spacing: 1
 
                     RowLayout {
                         Layout.alignment: Qt.AlignHCenter
-                        Layout.preferredHeight: 34
-                        spacing: 3
+                        Layout.preferredHeight: 30
+                        spacing: 4
 
                         Controls.Knob {
                             Layout.preferredHeight: 30
@@ -113,6 +121,8 @@ Item {
                         spacing: 1
 
                         MixerControls.FxAssignButtons {
+                            id: fxAssignments
+
                             Layout.alignment: Qt.AlignHCenter
                             Layout.preferredHeight: 20
                             groupName: root.group
@@ -127,12 +137,15 @@ Item {
 
         Controls.Panel {
             color: LateNightTheme.micAuxPanelColor
-            implicitHeight: 78
+            implicitHeight: 57
             implicitWidth: 47
 
             ColumnLayout {
                 anchors.fill: parent
-                anchors.margins: 4
+                anchors.bottomMargin: 4
+                anchors.leftMargin: 4
+                anchors.rightMargin: 4
+                anchors.topMargin: 2
                 spacing: 2
 
                 Text {

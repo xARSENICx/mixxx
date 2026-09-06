@@ -9,7 +9,7 @@ Controls.Panel {
     id: root
 
     color: LateNightTheme.micAuxPanelColor
-    implicitHeight: 78
+    implicitHeight: 59
     implicitWidth: 48
 
     ColumnLayout {
