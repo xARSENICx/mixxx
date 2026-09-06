@@ -183,9 +183,9 @@ QtObject {
     readonly property int smallSpinnySize: 63
     readonly property int miniSpinnySize: 53
     readonly property int deckTransportHeight: 55
-    readonly property color effectsAssignmentActiveTextColor: isClassic ? "#000000" : "#a7998b"
-    readonly property color effectsAssignmentInactiveColor: isClassic ? "#262626" : "#151517"
-    readonly property color effectsAssignmentInactiveTextColor: isClassic ? "#d2d2d1" : "#555555"
+    readonly property color effectsAssignmentActiveTextColor: "#000000"
+    readonly property color effectsAssignmentInactiveColor: isClassic ? "#262626" : "#1e1e20"
+    readonly property color effectsAssignmentInactiveTextColor: isClassic ? "#d2d2d1" : "#666666"
     readonly property color effectsControlActiveColor: "#888888"
     readonly property color effectsControlInactiveColor: "#262626"
     readonly property color effectsControllerColor12: isClassic ? "#73b508" : "#518f00"
