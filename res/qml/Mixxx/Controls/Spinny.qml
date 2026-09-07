@@ -8,9 +8,88 @@ Item {
     required property string group
     property bool indicatorVisible: true
     property alias indicator: indicatorContainer.contentItem
+    property bool rotationAnimationReady: false
+    property real animatedAngle: 0
+    property real observedPlayPositionIntervalMs: 1000 / 15
+    property real lastPlayPositionUpdateMs: 0
+    readonly property real targetAngle: indicatorRotation.targetAngle
+    readonly property bool rotationAnimationEnabled: rotationAnimationReady &&
+        root.visible &&
+        root.indicatorVisible &&
+        trackLoadedControl.value > 0 &&
+        !scratchArea.pressed &&
+        scratchEnableControl.value <= 0
 
     // Avoid animation short blinking of spinny during startup
-    Component.onCompleted: indicatorTransition.enabled = true
+    Component.onCompleted: {
+        indicatorTransition.enabled = true;
+        rotationAnimationReady = true;
+        updateAnimatedAngle();
+    }
+
+    function recordPlayPositionUpdate() {
+        if (trackLoadedControl.value <= 0) {
+            lastPlayPositionUpdateMs = 0;
+            return;
+        }
+
+        var now = Date.now();
+        if (lastPlayPositionUpdateMs > 0) {
+            var interval = now - lastPlayPositionUpdateMs;
+            if (interval >= 40 && interval <= 200) {
+                observedPlayPositionIntervalMs =
+                    observedPlayPositionIntervalMs * 0.75 + interval * 0.25;
+            } else if (interval > 250) {
+                observedPlayPositionIntervalMs = 1000 / 15;
+            }
+        }
+        lastPlayPositionUpdateMs = now;
+    }
+
+    function resetPlayPositionTiming() {
+        observedPlayPositionIntervalMs = 1000 / 15;
+        lastPlayPositionUpdateMs = 0;
+    }
+
+    function stopAndSnapAnimation() {
+        if (rotationAnimationReady) {
+            rotationAnimation.stop();
+        }
+        if (isFinite(targetAngle)) {
+            animatedAngle = targetAngle;
+        } else {
+            animatedAngle = 0;
+        }
+    }
+
+    function updateAnimatedAngle() {
+        if (!isFinite(targetAngle)) {
+            stopAndSnapAnimation();
+            return;
+        }
+
+        if (!rotationAnimationEnabled || !isFinite(animatedAngle)) {
+            stopAndSnapAnimation();
+            return;
+        }
+
+        if (Math.abs(animatedAngle - targetAngle) < 0.0001) {
+            rotationAnimation.stop();
+            animatedAngle = targetAngle;
+            return;
+        }
+
+        rotationAnimation.stop();
+        rotationAnimation.from = animatedAngle;
+        rotationAnimation.to = targetAngle;
+        rotationAnimation.start();
+    }
+
+    onTargetAngleChanged: updateAnimatedAngle()
+    onIndicatorVisibleChanged: updateAnimatedAngle()
+    onVisibleChanged: updateAnimatedAngle()
+    onRotationAnimationReadyChanged: updateAnimatedAngle()
+    onRotationAnimationEnabledChanged: updateAnimatedAngle()
 
     Mixxx.ControlProxy {
         id: samplesControl
@@ -31,6 +110,8 @@ Item {
 
         group: root.group
         key: "playposition"
+
+        onValueChanged: root.recordPlayPositionUpdate()
     }
 
     Mixxx.ControlProxy {
@@ -45,6 +126,11 @@ Item {
 
         group: root.group
         key: "track_loaded"
+
+        onValueChanged: {
+            root.resetPlayPositionTiming();
+            root.stopAndSnapAnimation();
+        }
     }
 
     Mixxx.ControlProxy {
@@ -67,6 +153,8 @@ Item {
         ? vinylSpeedTypeControl.value : 33.33
     readonly property real rps: Math.PI * rpm / 60.0
     readonly property real frameRate: sampleRateControl.value
+    readonly property int playPositionUpdateIntervalMs: Math.max(
+        50, Math.min(100, Math.round(root.observedPlayPositionIntervalMs)))
 
     Control {
         id: indicatorContainer
@@ -91,7 +179,18 @@ Item {
 
             origin.x: root.width / 2
             origin.y: root.height / 2
-            angle: 360 * rotationFactor
+            readonly property real targetAngle: 360 * rotationFactor
+            angle: root.animatedAngle
+        }
+
+        RotationAnimation {
+            id: rotationAnimation
+
+            duration: root.playPositionUpdateIntervalMs
+            direction: RotationAnimation.Shortest
+            easing.type: Easing.Linear
+            target: root
+            property: "animatedAngle"
         }
 
         states: State {
@@ -132,9 +231,12 @@ Item {
         }
 
         onPressed: {
+            root.stopAndSnapAnimation();
             scratchPositionControl.value = 0.0;
             lastAngle = getAngle(mouse.x, mouse.y);
         }
+
+        onPressedChanged: root.updateAnimatedAngle()
 
         onPositionChanged: {
             if (isNaN(sampleRateControl.value) || sampleRateControl.value <= 0) {
