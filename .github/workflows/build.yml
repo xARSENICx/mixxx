@@ -88,7 +88,6 @@ jobs:
               -DQML=OFF
               -DWAVPACK=ON
               -DVCPKG_TARGET_TRIPLET=x64-osx-min1100-release
-            # TODO: Fix this broken test on macOS
             ctest_args: []
             cpack_generator: DragNDrop
             compiler_cache: ccache
@@ -100,7 +99,7 @@ jobs:
             artifacts_path: build/*.dmg
             artifacts_slug: macos-macosintel
           - name: macOS 15 arm64
-            os: macos-15-intel
+            os: macos-15
             cmake_args: >-
               -DBULK=ON
               -DCOREAUDIO=ON
@@ -111,14 +110,12 @@ jobs:
               -DQML=ON
               -DWAVPACK=ON
               -DVCPKG_TARGET_TRIPLET=arm64-osx-min1100-release
-            # TODO: Fix this broken test on macOS
-            crosscompile: true
             cpack_generator: DragNDrop
             compiler_cache: ccache
             compiler_cache_path: /Users/runner/Library/Caches/ccache
             compiler_cache_id: arm64
             buildenv_basepath: /Users/runner/buildenv
-            buildenv_script: tools/macos_arm64-cross-release_buildenv.sh
+            buildenv_script: tools/macos_release_buildenv.sh
             artifacts_name: macOS ARM DMG
             artifacts_path: build/*.dmg
             artifacts_slug: macos-macosarm
