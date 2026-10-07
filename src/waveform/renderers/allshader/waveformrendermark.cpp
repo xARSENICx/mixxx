@@ -462,7 +462,7 @@ void allshader::WaveformRenderMark::update() {
 
     const float playMarkerPos = static_cast<float>(m_waveformRenderer->getPlayMarkerPosition() *
             m_waveformRenderer->getLength());
-    if (m_lastPlayMarkerPos != playMarkerPos) {
+    if (isDirty() || m_lastPlayMarkerPos != playMarkerPos) {
         const float drawOffset = roundToPixel(playMarkerPos + kPlayPosOffset);
         TexturedVertexUpdater vertexUpdater{
                 m_pPlayPosNode->geometry()
@@ -473,6 +473,7 @@ void allshader::WaveformRenderMark::update() {
                 {1.f, 1.f});
         m_pPlayPosNode->markDirtyGeometry();
         m_lastPlayMarkerPos = playMarkerPos;
+        setDirty(false);
     }
 
     if (hasWaveform && (m_untilMarkShowBeats || m_untilMarkShowTime)) {
